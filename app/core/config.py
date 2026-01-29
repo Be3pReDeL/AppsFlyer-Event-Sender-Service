@@ -1,6 +1,5 @@
 """Application configuration using pydantic-settings."""
 
-from functools import lru_cache
 from typing import Literal
 
 from pydantic import Field, field_validator
@@ -89,7 +88,10 @@ class Settings(BaseSettings):
             return {}
 
 
-@lru_cache
 def get_settings() -> Settings:
-    """Get cached settings instance."""
+    """Get settings instance.
+
+    Note: Not cached to ensure environment variable changes are reflected
+    in tests and runtime configuration updates.
+    """
     return Settings()

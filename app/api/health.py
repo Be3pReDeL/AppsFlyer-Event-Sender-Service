@@ -81,13 +81,15 @@ async def readiness(
 
 async def _check_redis(redis_url: str) -> bool:
     """Check Redis connectivity."""
-    try:
-        import redis.asyncio as aioredis
+    import redis.asyncio as aioredis
 
-        client = aioredis.from_url(redis_url, decode_responses=True)
+    client = aioredis.from_url(redis_url, decode_responses=True)
+    try:
         await client.ping()
-        await client.aclose()
         return True
     except Exception as e:
         logger.error("redis_health_check_failed", error=str(e))
         return False
+    finally:
+        # Ensure connection pool is always closed to prevent resource leak
+        await client.aclose()
