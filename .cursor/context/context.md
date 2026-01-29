@@ -103,6 +103,10 @@ docker/
 
 1. **get_settings() lru_cache**: Убран `@lru_cache` для корректной работы с тестами и динамическими ENV изменениями
 2. **Redis resource leak**: Добавлен `try-finally` в `_check_redis()` для гарантированного закрытия connection pool
+3. **HMAC signature duplicate timestamp**: Исправлено дублирование timestamp в HMAC подписи
+   - `canonical_query` уже содержал `ts=<value>`
+   - Код ошибочно добавлял `ts` повторно → `...&ts=123123`
+   - Теперь: `message = canonical_query` (без дублирования)
 
 ---
 
