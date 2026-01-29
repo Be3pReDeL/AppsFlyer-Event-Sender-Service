@@ -4,6 +4,7 @@
 
 ### Завершённые задачи
 - [x] **Bootstrap**: базовая структура проекта, конфигурация, health endpoints, Docker
+- [x] **Bugfix**: Исправлен lru_cache в get_settings() и resource leak в _check_redis()
 
 ### В ожидании
 - [ ] Endpoint'ы + auth + валидация + маскирование секретов
@@ -90,6 +91,13 @@ docker/
 | FastAPI | `/websites/fastapi_tiangolo` | Lifespan, DI |
 | Redis-py | `/redis/redis-py` | Streams, Consumer Groups |
 | Pydantic Settings | `/pydantic/pydantic-settings` | ENV config |
+
+---
+
+## Исправленные проблемы
+
+1. **get_settings() lru_cache**: Убран `@lru_cache` для корректной работы с тестами и динамическими ENV изменениями
+2. **Redis resource leak**: Добавлен `try-finally` в `_check_redis()` для гарантированного закрытия connection pool
 
 ---
 
