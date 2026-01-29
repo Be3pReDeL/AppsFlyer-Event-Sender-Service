@@ -233,7 +233,8 @@ class Worker:
                 await self.consumer.ack_message(message_id)
                 return
 
-            # Retryable error - calculate backoff and wait
+            # Retryable error - increment attempt, calculate backoff and wait
+            event.attempt += 1
             backoff_delay = self._calculate_backoff(event.attempt)
             logger.info(
                 "retrying_event",
@@ -244,8 +245,7 @@ class Worker:
 
             await asyncio.sleep(backoff_delay)
 
-            # Increment attempt and re-enqueue
-            event.attempt += 1
+            # Re-enqueue with incremented attempt
             await self.producer.enqueue(event)
 
             # Ack original message (new one will be processed in next iteration)

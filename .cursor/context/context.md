@@ -128,6 +128,17 @@ docker/
    - Если Redis не подключился: `app.state.redis = None`
    - `_get_redis()` возвращал None без проверки → AttributeError в endpoint'ах
    - Теперь: проверка в `_get_redis()` с HTTPException 503
+6. **TOCTOU race condition в дедупликации**: Конкурентные запросы могли оба пройти проверку дубликата
+   - Последовательность: `check_duplicate()` → `enqueue()` → `mark_processed()`
+   - Между check и mark был gap, где concurrent запрос мог пройти проверку
+   - Решение: атомарная операция `check_and_mark_if_new()` через Redis `SET NX`
+   - Теперь: одна операция check-and-set, гарантия идемпотентности
+7. **Inconsistent backoff calculation**: Разные retry delays для первой попытки
+   - AppsFlyerError: backoff с текущим attempt → increment
+   - Unexpected error: increment → backoff с новым attempt
+   - Результат: unexpected error ждал 2x дольше (attempt=0: 1s vs attempt=1: 2s)
+   - Решение: единообразная логика — increment attempt → calculate backoff → sleep
+   - Теперь: консистентные retry delays независимо от типа ошибки
 
 ---
 

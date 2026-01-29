@@ -154,3 +154,72 @@ final_delay = max(0.1, delay + jitter)
 **Риски**:
 - Duplicate processing возможен если worker медленный но не упал
 - Митигация: deduplication keys и idempotent AppsFlyer requests
+
+---
+
+## ADR-009: Атомарная дедупликация через Redis SET NX
+
+**Статус**: Принято
+
+**Контекст**: Изначальная реализация дедупликации имела TOCTOU (time-of-check to time-of-use) race condition:
+```python
+is_duplicate = await check_duplicate(event_id)  # Check
+if not is_duplicate:
+    await enqueue(event)                        # Use
+    await mark_processed(event_id)              # Mark
+```
+
+Между check и mark concurrent запросы с одинаковым `event_id` могут оба пройти проверку и оба enqueue'нуться, нарушая идемпотентность.
+
+**Решение**: Использовать атомарную операцию Redis `SET key value NX EX ttl`.
+
+**Реализация**:
+```python
+# Атомарная операция: check-and-set в одной команде
+was_set = await redis.set("dedup:event_id", "1", nx=True, ex=ttl)
+if not was_set:  # Key already exists - duplicate
+    return "duplicate"
+# Key was set successfully - new event, proceed to enqueue
+```
+
+**Обоснование**:
+- **Атомарность**: Redis SET NX гарантирует, что только один concurrent запрос установит ключ
+- **Гарантия идемпотентности**: невозможно дважды enqueue событие с одинаковым event_id
+- **Performance**: одна Redis операция вместо трёх (exists + enqueue + setex)
+- **Simplicity**: меньше кода, нет сложной синхронизации
+
+**Альтернативы (отклонены)**:
+- Distributed lock (Redis lock): сложнее, требует timeout management и lock cleanup
+- Database transactions: требует другого storage backend (PostgreSQL)
+- Lua script: избыточно для такой простой операции
+
+---
+
+## ADR-010: Консистентный backoff для всех retry errors
+
+**Статус**: Принято
+
+**Контекст**: Изначально backoff calculation выполнялся в разные моменты attempt lifecycle:
+- AppsFlyerError: `backoff(current_attempt)` → `attempt++` → sleep → re-enqueue
+- Unexpected error: `attempt++` → `backoff(new_attempt)` → sleep → re-enqueue
+
+Это приводило к inconsistency: при attempt=0 AppsFlyerError ждал ~1s, а unexpected error ~2s для первой retry попытки.
+
+**Решение**: Унифицировать порядок операций для всех retryable errors:
+```python
+attempt += 1
+backoff_delay = calculate_backoff(attempt)
+await sleep(backoff_delay)
+await enqueue(event)
+await ack(message)
+```
+
+**Обоснование**:
+- **Консистентность**: одинаковый retry policy независимо от типа ошибки
+- **Понятность**: attempt всегда соответствует номеру попытки (1-based после первой ошибки)
+- **Предсказуемость**: логи показывают правильный attempt при retry
+- **Справедливость**: все события обрабатываются с одинаковым backoff
+
+**Влияние**:
+- Тесты обновлены для проверки консистентности backoff
+- Метрики `worker_retry_total{attempt}` теперь точнее отражают реальное количество попыток

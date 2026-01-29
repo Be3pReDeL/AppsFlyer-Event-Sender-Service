@@ -81,6 +81,36 @@ class EventProducer:
             # On error, assume not duplicate to avoid false blocking
             return False
 
+    async def check_and_mark_if_new(self, event_id: str) -> bool:
+        """Atomically check if event is new and mark it as processed if so.
+
+        Uses Redis SET NX to avoid TOCTOU race condition.
+
+        Args:
+            event_id: Event identifier to check and mark
+
+        Returns:
+            True if event is NEW (was successfully marked), False if duplicate
+        """
+        try:
+            dedup_key = f"dedup:{event_id}"
+            # SET NX with expiry - returns True if key was set, False if already exists
+            was_set = await self.redis.set(
+                dedup_key,
+                "1",
+                nx=True,  # Only set if not exists (atomic check-and-set)
+                ex=self.settings.dedup_ttl_seconds,
+            )
+            return bool(was_set)
+        except Exception as e:
+            logger.error(
+                "dedup_check_and_mark_failed",
+                event_id=event_id,
+                error=str(e),
+            )
+            # On error, assume event is new to avoid false blocking
+            return True
+
     async def mark_processed(self, event_id: str) -> None:
         """Mark event as processed in deduplication cache.
 

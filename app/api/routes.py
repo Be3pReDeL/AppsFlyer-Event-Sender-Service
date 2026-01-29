@@ -255,9 +255,9 @@ async def _process_registration(
     final_event_id = event_data.event_id or f"reg_{uuid.uuid4().hex[:16]}"
     queued_at = datetime.now(timezone.utc)
 
-    # Check for duplicates
-    is_duplicate = await producer.check_duplicate(final_event_id)
-    if is_duplicate:
+    # Atomically check and mark as processed (prevents TOCTOU race condition)
+    is_new = await producer.check_and_mark_if_new(final_event_id)
+    if not is_new:
         logger.info(
             "duplicate_event_skipped",
             event_id=final_event_id,
@@ -284,9 +284,6 @@ async def _process_registration(
 
     # Enqueue to Redis Streams
     await producer.enqueue(internal_event)
-
-    # Mark as processed for deduplication
-    await producer.mark_processed(final_event_id)
 
     logger.info(
         "registration_received",
@@ -316,9 +313,9 @@ async def _process_purchase(
     final_event_id = event_data.event_id or f"purchase_{uuid.uuid4().hex[:16]}"
     queued_at = datetime.now(timezone.utc)
 
-    # Check for duplicates
-    is_duplicate = await producer.check_duplicate(final_event_id)
-    if is_duplicate:
+    # Atomically check and mark as processed (prevents TOCTOU race condition)
+    is_new = await producer.check_and_mark_if_new(final_event_id)
+    if not is_new:
         logger.info(
             "duplicate_event_skipped",
             event_id=final_event_id,
@@ -345,9 +342,6 @@ async def _process_purchase(
 
     # Enqueue to Redis Streams
     await producer.enqueue(internal_event)
-
-    # Mark as processed for deduplication
-    await producer.mark_processed(final_event_id)
 
     logger.info(
         "purchase_received",
