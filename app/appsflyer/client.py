@@ -1,11 +1,14 @@
 """AppsFlyer API client using httpx."""
 
+import time
+
 import httpx
 
 from app.appsflyer.models import AppsFlyerRequest, AppsFlyerResponse
 from app.core.config import Settings
 from app.core.exceptions import AppsFlyerError
 from app.core.logging import get_logger
+from app.core.metrics import record_appsflyer_latency, record_appsflyer_request
 
 logger = get_logger(__name__)
 
@@ -72,6 +75,7 @@ class AppsFlyerClient:
             url=url,
         )
 
+        start_time = time.monotonic()
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.post(
@@ -80,16 +84,22 @@ class AppsFlyerClient:
                     headers=headers,
                 )
 
+                latency = time.monotonic() - start_time
+
                 # Log response
                 logger.info(
                     "appsflyer_response",
                     event_id=event_id,
                     status_code=response.status_code,
-                    latency_ms=int(response.elapsed.total_seconds() * 1000),
+                    latency_ms=int(latency * 1000),
                 )
 
+                # Record metrics
+                record_appsflyer_request(request.event_name, response.status_code)
+                record_appsflyer_latency(request.event_name, latency)
+
                 # Handle response (may raise AppsFlyerError)
-                return self._handle_response(response, event_id)
+                return self._handle_response(response, event_id, request.event_name)
 
         except AppsFlyerError:
             # Re-raise AppsFlyerError from _handle_response without wrapping
@@ -136,12 +146,14 @@ class AppsFlyerClient:
         self,
         response: httpx.Response,
         event_id: str,
+        event_name: str = "unknown",
     ) -> AppsFlyerResponse:
         """Handle AppsFlyer API response.
 
         Args:
             response: HTTP response
             event_id: Internal event ID for logging
+            event_name: Event name for metrics
 
         Returns:
             Parsed AppsFlyer response

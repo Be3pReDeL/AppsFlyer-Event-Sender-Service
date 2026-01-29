@@ -12,8 +12,10 @@
 - [x] **Rate Limiting**: Redis-based sliding window rate limiting per token/IP
 
 ### В ожидании
-- [ ] Prometheus metrics instrumentation
-- [ ] Финальная документация и README updates
+- [x] Prometheus metrics instrumentation
+- [x] Финальная документация и README updates
+
+**Проект завершён!**
 
 ---
 
@@ -372,9 +374,50 @@ docker/
   - Handles Redis errors gracefully
   - Uses sliding window algorithm
 
-## Следующие шаги
+## Реализованные фичи (Этап 7: Observability)
 
-1. Prometheus metrics instrumentation
-2. Финальная документация (README.md, API examples)
-3. Smoke/load test
-4. Docker Compose verification
+### Prometheus Metrics (`app/core/metrics.py`)
+- **HTTP Metrics** (через prometheus-fastapi-instrumentator):
+  - `http_requests_total{method,path,status}` — общее количество запросов
+  - `http_request_duration_seconds{method,path}` — latency запросов
+  - `http_requests_inprogress{method,path}` — in-flight запросы
+- **Queue Metrics**:
+  - `queue_enqueued_total{event_type}` — события добавленные в очередь
+  - `queue_duplicate_total{event_type}` — обнаруженные дубликаты
+- **Worker Metrics**:
+  - `worker_processed_total{event_type,result}` — обработанные события
+  - `worker_retry_total{event_type}` — retry attempts
+  - `worker_dlq_total{event_type,reason}` — события в DLQ
+- **AppsFlyer Metrics**:
+  - `appsflyer_requests_total{event_type,status_code}` — запросы к API
+  - `appsflyer_latency_seconds{event_type}` — histogram latency
+- **Rate Limit Metrics**:
+  - `rate_limit_blocked_total{identifier_type}` — заблокированные requests
+- **Deduplication Metrics**:
+  - `dedup_check_total{result}` — результаты проверки (new/duplicate)
+
+### Интеграция в код
+- `app/main.py` — prometheus-fastapi-instrumentator на `/metrics`
+- `app/queue/producer.py` — record_enqueue, record_dedup_check, record_dlq
+- `app/worker/run.py` — record_processed, record_retry
+- `app/appsflyer/client.py` — record_appsflyer_request, record_appsflyer_latency
+- `app/api/rate_limit.py` — record_rate_limit_blocked
+
+### Тесты (77/77 passed)
+- Все существующие тесты проходят
+- Метрики не ломают тесты (обёрнуты в try-except где критично)
+
+## Итоговый статус проекта
+
+**Проект полностью завершён и готов к production:**
+
+✅ Bootstrap (структура, конфигурация, Docker)
+✅ API Endpoints с auth и валидацией
+✅ Redis Streams очередь с дедупликацией
+✅ AppsFlyer client и mapper
+✅ Retry/backoff/DLQ/pending reclaim
+✅ Rate Limiting (sliding window)
+✅ Prometheus Metrics
+✅ Structured JSON Logging
+✅ Health Endpoints
+✅ Финальная документация

@@ -12,6 +12,7 @@ from app.appsflyer.mapper import AppsFlyerMapper
 from app.core.config import get_settings
 from app.core.exceptions import AppsFlyerError
 from app.core.logging import get_logger, setup_logging
+from app.core.metrics import record_processed, record_retry
 from app.core.models import InternalEvent
 from app.queue.consumer import EventConsumer, get_consumer
 from app.queue.producer import EventProducer, get_producer
@@ -207,6 +208,9 @@ class Worker:
                 event_type=event.event_type,
             )
 
+            # Record success metric
+            record_processed(event.event_type, "success")
+
         except AppsFlyerError as e:
             logger.warning(
                 "appsflyer_send_failed",
@@ -242,6 +246,9 @@ class Worker:
                 attempt=event.attempt,
                 backoff_seconds=backoff_delay,
             )
+
+            # Record retry metric
+            record_retry(event.event_type)
 
             await asyncio.sleep(backoff_delay)
 

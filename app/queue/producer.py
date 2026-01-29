@@ -6,6 +6,7 @@ import redis.asyncio as aioredis
 from app.core.config import Settings
 from app.core.exceptions import QueueError
 from app.core.logging import get_logger
+from app.core.metrics import record_dedup_check, record_dlq, record_enqueue
 from app.core.models import InternalEvent
 
 logger = get_logger(__name__)
@@ -47,6 +48,9 @@ class EventProducer:
                 stream=self.settings.stream_main,
                 message_id=message_id,
             )
+
+            # Record metric
+            record_enqueue(event.event_type)
 
             return str(message_id)
 
@@ -101,7 +105,12 @@ class EventProducer:
                 nx=True,  # Only set if not exists (atomic check-and-set)
                 ex=self.settings.dedup_ttl_seconds,
             )
-            return bool(was_set)
+            is_new = bool(was_set)
+
+            # Record dedup metric
+            record_dedup_check("new" if is_new else "duplicate")
+
+            return is_new
         except Exception as e:
             logger.error(
                 "dedup_check_and_mark_failed",
@@ -165,6 +174,9 @@ class EventProducer:
                 attempt=event.attempt,
                 dlq_message_id=message_id,
             )
+
+            # Record DLQ metric
+            record_dlq(event.event_type, reason)
 
         except Exception as e:
             logger.error(

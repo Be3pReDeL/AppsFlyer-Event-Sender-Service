@@ -8,6 +8,7 @@ from fastapi import Depends, HTTPException, Request, status
 
 from app.core.config import Settings, get_settings
 from app.core.logging import get_logger
+from app.core.metrics import record_rate_limit_blocked
 
 logger = get_logger(__name__)
 
@@ -135,6 +136,10 @@ async def check_rate_limit_dependency(
     allowed, info = await rate_limiter.check_rate_limit(identifier)
 
     if not allowed:
+        # Determine identifier type for metrics
+        identifier_type = "token" if identifier.startswith("token:") else "ip"
+        record_rate_limit_blocked(identifier_type)
+
         logger.warning(
             "rate_limit_rejected",
             identifier=identifier,
