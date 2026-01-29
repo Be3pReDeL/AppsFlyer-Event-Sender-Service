@@ -132,7 +132,7 @@ def create_app() -> FastAPI:
     instrumentator = Instrumentator(
         should_group_status_codes=False,
         should_ignore_untemplated=True,
-        should_respect_env_var=True,
+        should_respect_env_var=False,  # Always enable metrics
         should_instrument_requests_inprogress=True,
         excluded_handlers=["/health/live", "/health/ready", "/metrics"],
         inprogress_name="http_requests_inprogress",
