@@ -1,0 +1,89 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=${APP_ENV:-dev}
+      - DEBUG=${DEBUG:-false}
+      - AUTH_MODE=${AUTH_MODE:-token}
+      - API_TOKENS=${API_TOKENS}
+      - HMAC_KEYS_JSON=${HMAC_KEYS_JSON:-{}}
+      - REDIS_URL=redis://redis:6379/0
+      - STREAM_MAIN=${STREAM_MAIN:-events:main}
+      - STREAM_DLQ=${STREAM_DLQ:-events:dlq}
+      - APPSFLYER_BASE_URL=${APPSFLYER_BASE_URL:-https://api2.appsflyer.com}
+      - APPSFLYER_DEV_KEY=${APPSFLYER_DEV_KEY}
+      - APPSFLYER_TIMEOUT_SECONDS=${APPSFLYER_TIMEOUT_SECONDS:-5}
+      - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED:-true}
+      - RATE_LIMIT_RPS=${RATE_LIMIT_RPS:-100}
+      - RATE_LIMIT_BURST=${RATE_LIMIT_BURST:-200}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - app-network
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    environment:
+      - APP_ENV=${APP_ENV:-dev}
+      - DEBUG=${DEBUG:-false}
+      - REDIS_URL=redis://redis:6379/0
+      - STREAM_MAIN=${STREAM_MAIN:-events:main}
+      - STREAM_DLQ=${STREAM_DLQ:-events:dlq}
+      - WORKER_CONSUMER_GROUP=${WORKER_CONSUMER_GROUP:-af_sender}
+      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-10}
+      - MAX_ATTEMPTS=${MAX_ATTEMPTS:-8}
+      - BACKOFF_BASE_SECONDS=${BACKOFF_BASE_SECONDS:-1}
+      - BACKOFF_MAX_SECONDS=${BACKOFF_MAX_SECONDS:-60}
+      - PENDING_CLAIM_MS=${PENDING_CLAIM_MS:-60000}
+      - APPSFLYER_BASE_URL=${APPSFLYER_BASE_URL:-https://api2.appsflyer.com}
+      - APPSFLYER_DEV_KEY=${APPSFLYER_DEV_KEY}
+      - APPSFLYER_TIMEOUT_SECONDS=${APPSFLYER_TIMEOUT_SECONDS:-5}
+      - DEDUP_TTL_SECONDS=${DEDUP_TTL_SECONDS:-604800}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: always
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy noeviction
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: always
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  redis-data:

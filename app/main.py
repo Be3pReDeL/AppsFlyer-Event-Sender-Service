@@ -1,0 +1,107 @@
+"""FastAPI application entry point."""
+
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+
+import redis.asyncio as aioredis
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+from app.api.health import router as health_router
+from app.core.config import get_settings
+from app.core.exceptions import AppError
+from app.core.logging import get_logger, setup_logging
+
+# Initialize logging before anything else
+setup_logging()
+
+logger = get_logger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Manage application lifecycle - startup and shutdown events."""
+    settings = get_settings()
+    logger.info(
+        "application_startup",
+        app_name=settings.app_name,
+        version=settings.app_version,
+        environment=settings.app_env,
+    )
+
+    # Startup: Initialize Redis connection pool
+    try:
+        app.state.redis = aioredis.from_url(
+            settings.redis_url,
+            decode_responses=True,
+            max_connections=50,
+        )
+        await app.state.redis.ping()
+        logger.info("redis_connected", url=_mask_redis_url(settings.redis_url))
+    except Exception as e:
+        logger.error("redis_connection_failed", error=str(e))
+        # Allow startup even if Redis is down - readiness probe will fail
+        app.state.redis = None
+
+    yield
+
+    # Shutdown: Clean up resources
+    logger.info("application_shutdown")
+    if hasattr(app.state, "redis") and app.state.redis:
+        await app.state.redis.aclose()
+        logger.info("redis_disconnected")
+
+
+def _mask_redis_url(url: str) -> str:
+    """Mask password in Redis URL for logging."""
+    if "@" in url:
+        # redis://:password@host:port/db -> redis://***@host:port/db
+        parts = url.split("@")
+        return f"redis://***@{parts[-1]}"
+    return url
+
+
+def create_app() -> FastAPI:
+    """Create and configure the FastAPI application."""
+    settings = get_settings()
+
+    app = FastAPI(
+        title=settings.app_name,
+        version=settings.app_version,
+        description="Service for sending S2S events to AppsFlyer",
+        docs_url="/docs" if settings.debug else None,
+        redoc_url="/redoc" if settings.debug else None,
+        openapi_url="/openapi.json" if settings.debug else None,
+        lifespan=lifespan,
+    )
+
+    # Include routers
+    app.include_router(health_router)
+
+    # Global exception handler
+    @app.exception_handler(AppError)
+    async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:  # noqa: ARG001
+        logger.warning(
+            "app_error",
+            error_type=type(exc).__name__,
+            message=exc.message,
+            details=exc.details,
+        )
+        return JSONResponse(
+            status_code=400,
+            content={"error": exc.message, "details": exc.details},
+        )
+
+    @app.exception_handler(Exception)
+    async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:  # noqa: ARG001
+        logger.exception("unhandled_exception", error=str(exc))
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Internal server error"},
+        )
+
+    return app
+
+
+# Create application instance
+app = create_app()
