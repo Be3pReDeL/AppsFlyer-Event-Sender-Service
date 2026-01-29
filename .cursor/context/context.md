@@ -247,6 +247,20 @@ docker/
 - `test_appsflyer_client.py`: 8 тестов client (success, errors, timeout, network)
 - Все тесты используют respx для мокирования HTTP запросов
 
+## Исправленные баги (Этап 4+)
+
+### Bug 5: Дублирование определений `_get_redis`/`_get_producer` (Keitaro POST refactor)
+**Файл**: `app/api/routes.py`
+**Описание**: Функции `_get_redis` и `_get_producer` были определены дважды:
+- Первые определения (строки 28-51): с правильной проверкой `redis is None` → HTTPException 503
+- Вторые определения (строки 247-257): без проверки безопасности
+
+Вторые определения затеняли первые, что приводило к обходу проверки на доступность Redis и вызывало AttributeError вместо корректной обработки ошибки 503.
+
+**Исправление**: Удалены дублирующиеся определения (строки 247-257). Оставлены оригинальные определения с проверкой безопасности.
+
+**Тесты**: `test_tracking_endpoint_redis_unavailable`, `test_tracking_endpoint_redis_available`
+
 ## Следующие шаги
 
 1. Реализовать retry logic с exponential backoff + jitter
