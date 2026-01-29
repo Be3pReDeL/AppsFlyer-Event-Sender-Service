@@ -8,8 +8,9 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.api.health import router as health_router
+from app.api.routes import router as tracking_router
 from app.core.config import get_settings
-from app.core.exceptions import AppError
+from app.core.exceptions import AppError, AuthenticationError, ValidationError
 from app.core.logging import get_logger, setup_logging
 
 # Initialize logging before anything else
@@ -77,8 +78,34 @@ def create_app() -> FastAPI:
 
     # Include routers
     app.include_router(health_router)
+    app.include_router(tracking_router)
 
-    # Global exception handler
+    # Global exception handlers
+    @app.exception_handler(AuthenticationError)
+    async def auth_error_handler(request: Request, exc: AuthenticationError) -> JSONResponse:  # noqa: ARG001
+        logger.warning(
+            "authentication_error",
+            error_type=type(exc).__name__,
+            message=exc.message,
+        )
+        return JSONResponse(
+            status_code=401,
+            content={"error": exc.message, "details": exc.details},
+        )
+
+    @app.exception_handler(ValidationError)
+    async def validation_error_handler(request: Request, exc: ValidationError) -> JSONResponse:  # noqa: ARG001
+        logger.warning(
+            "validation_error",
+            error_type=type(exc).__name__,
+            message=exc.message,
+            details=exc.details,
+        )
+        return JSONResponse(
+            status_code=400,
+            content={"error": exc.message, "details": exc.details},
+        )
+
     @app.exception_handler(AppError)
     async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:  # noqa: ARG001
         logger.warning(

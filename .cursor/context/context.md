@@ -5,9 +5,9 @@
 ### Завершённые задачи
 - [x] **Bootstrap**: базовая структура проекта, конфигурация, health endpoints, Docker
 - [x] **Bugfix**: Исправлен lru_cache в get_settings() и resource leak в _check_redis()
+- [x] **Endpoint'ы + auth + валидация**: Реализованы /v1/track/registration и /v1/track/purchase с token и HMAC auth
 
 ### В ожидании
-- [ ] Endpoint'ы + auth + валидация + маскирование секретов
 - [ ] Очередь Redis Streams + базовый worker
 - [ ] AppsFlyer client + mapper по докам Context7
 - [ ] Надёжность (retry/backoff/DLQ/dedup/pending reclaim)
@@ -41,7 +41,10 @@ Keitaro → API (FastAPI) → Redis Streams → Worker → AppsFlyer API
 app/
 ├── main.py           # FastAPI приложение с lifespan
 ├── api/
-│   └── health.py     # Health check endpoints
+│   ├── health.py     # Health check endpoints
+│   ├── routes.py     # Tracking endpoints (registration/purchase)
+│   ├── auth.py       # Token и HMAC аутентификация
+│   └── schemas.py    # Pydantic модели запросов/ответов
 ├── core/
 │   ├── config.py     # Settings через pydantic-settings
 │   ├── logging.py    # Structlog с маскированием
@@ -52,7 +55,9 @@ app/
     └── run.py        # Worker entry point
 tests/
 ├── conftest.py       # Fixtures
-└── test_health.py    # Health endpoint tests
+├── test_health.py    # Health endpoint tests
+├── test_auth.py      # Authentication tests
+└── test_routes.py    # Tracking endpoints tests
 docs/
 ├── references.md     # Использованная документация
 ├── decisions.md      # Архитектурные решения
@@ -101,9 +106,36 @@ docker/
 
 ---
 
+## Реализованные фичи (Этап 2)
+
+### Аутентификация (`app/api/auth.py`)
+- **Token-based auth**: query-параметр `?token=<value>`
+  - Поддержка нескольких токенов через `API_TOKENS` (comma-separated)
+  - Автоматическое маскирование в логах
+- **HMAC auth**: `?key=<id>&ts=<timestamp>&sig=<signature>`
+  - Подпись: `HMAC_SHA256(secret, canonical_query + ts)`
+  - Защита от timestamp skew (±300 sec)
+  - Constant-time signature comparison
+  - TODO: Replay protection через Redis
+
+### API Endpoints (`app/api/routes.py`)
+- `GET/POST /v1/track/registration` — регистрация пользователя
+- `GET/POST /v1/track/purchase` — покупка (обязательные: revenue, currency)
+- Автогенерация `event_id` если не передан
+- Возврат 202 Accepted с event_id и queued_at
+
+### Валидация (`app/api/schemas.py`)
+- **RegistrationRequest**: appsflyer_id, customer_user_id, platform, registration_method
+- **PurchaseRequest**: revenue (≥0), currency (3 chars), product_id, order_id, quantity
+- **TrackingResponse**: status, event_id, queued_at
+- Автонормализация: platform → lowercase, currency → uppercase
+
+### Тесты (23 passed)
+- `test_auth.py`: token/HMAC валидация, invalid/expired/missing parameters
+- `test_routes.py`: GET/POST endpoints, validation, auth enforcement
+
 ## Следующие шаги
 
-1. Реализовать `/v1/track/registration` и `/v1/track/purchase` endpoints
-2. Добавить token-based аутентификацию
-3. Добавить валидацию входных данных (Pydantic schemas)
-4. Реализовать маскирование токенов в логах
+1. Реализовать Redis Streams producer — постановка событий в очередь
+2. Реализовать Redis Streams consumer — чтение событий worker'ом
+3. Добавить дедупликацию через Redis keys
