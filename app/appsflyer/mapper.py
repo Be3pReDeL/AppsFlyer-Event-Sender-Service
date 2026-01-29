@@ -19,19 +19,22 @@ class AppsFlyerMapper:
     }
 
     @staticmethod
-    def map_event(event: InternalEvent) -> AppsFlyerRequest:
+    def map_event(event: InternalEvent) -> tuple[AppsFlyerRequest, str | None]:
         """Map InternalEvent to AppsFlyerRequest.
 
         Args:
             event: Internal event from queue
 
         Returns:
-            AppsFlyer API request model
+            Tuple of (AppsFlyer API request model, app_id or None)
 
         Raises:
             ValueError: If required fields are missing
         """
         payload = event.payload
+
+        # Extract app_id if provided
+        app_id = payload.get("app_id")
 
         # Get AppsFlyer ID (required)
         appsflyer_id = payload.get("appsflyer_id") or payload.get("device_id")
@@ -73,9 +76,10 @@ class AppsFlyerMapper:
             event_id=event.event_id,
             event_type=event.event_type,
             appsflyer_event_name=event_name,
+            app_id=app_id,
         )
 
-        return request
+        return request, app_id
 
     @staticmethod
     def _build_event_value(event_type: str, payload: dict[str, Any]) -> dict[str, Any]:

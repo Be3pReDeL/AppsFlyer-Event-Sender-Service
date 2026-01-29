@@ -44,14 +44,14 @@ class Settings(BaseSettings):
 
     # AppsFlyer
     appsflyer_base_url: str = Field(
-        default="https://api2.appsflyer.com",
+        default="https://api3.appsflyer.com",
         description="AppsFlyer API base URL",
     )
     appsflyer_timeout_seconds: float = Field(default=5.0, description="AppsFlyer API timeout")
     appsflyer_dev_key: str = Field(default="", description="AppsFlyer dev key for authentication")
-    appsflyer_app_id: str = Field(
+    appsflyer_default_app_id: str = Field(
         default="",
-        description="AppsFlyer app ID (for iOS: prefix with 'id', for Android: package name)",
+        description="Default AppsFlyer app ID (can be overridden per request)",
     )
 
     # Rate limiting

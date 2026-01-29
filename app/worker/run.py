@@ -120,10 +120,14 @@ class Worker:
 
         try:
             # Map internal event to AppsFlyer request
-            af_request = AppsFlyerMapper.map_event(event)
+            af_request, app_id = AppsFlyerMapper.map_event(event)
 
             # Send to AppsFlyer
-            af_response = await self.appsflyer_client.send_event(af_request, event.event_id)
+            af_response = await self.appsflyer_client.send_event(
+                af_request,
+                event.event_id,
+                app_id=app_id,
+            )
 
             logger.info(
                 "appsflyer_send_success",

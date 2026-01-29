@@ -24,13 +24,14 @@ def test_map_registration_event() -> None:
         source_meta={},
     )
 
-    request = AppsFlyerMapper.map_event(event)
+    request, app_id = AppsFlyerMapper.map_event(event)
 
     assert request.appsflyer_id == "af-device-123"
     assert request.event_name == "af_complete_registration"
     assert request.customer_user_id == "user-456"
     assert request.platform == "iOS"
     assert request.event_value.get("af_registration_method") == "email"
+    assert app_id is None  # Not provided in payload
 
 
 def test_map_purchase_event() -> None:
@@ -53,7 +54,7 @@ def test_map_purchase_event() -> None:
         source_meta={},
     )
 
-    request = AppsFlyerMapper.map_event(event)
+    request, app_id = AppsFlyerMapper.map_event(event)
 
     assert request.appsflyer_id == "af-device-789"
     assert request.event_name == "af_purchase"
@@ -64,6 +65,26 @@ def test_map_purchase_event() -> None:
     assert request.event_value["af_content_id"] == "premium_monthly"
     assert request.event_value["af_quantity"] == 1
     assert request.event_value["af_order_id"] == "order_abc123"
+    assert app_id is None
+
+
+def test_map_event_with_app_id() -> None:
+    """Test that app_id is extracted from payload."""
+    event = InternalEvent(
+        event_type="registration",
+        event_id="evt_app",
+        received_at=datetime.now(timezone.utc),
+        payload={
+            "app_id": "id123456789",  # iOS app
+            "appsflyer_id": "af-dev-123",
+            "platform": "ios",
+        },
+        attempt=0,
+        source_meta={},
+    )
+
+    request, app_id = AppsFlyerMapper.map_event(event)
+    assert app_id == "id123456789"
 
 
 def test_map_event_missing_appsflyer_id() -> None:
@@ -95,7 +116,7 @@ def test_map_event_fallback_to_device_id() -> None:
         source_meta={},
     )
 
-    request = AppsFlyerMapper.map_event(event)
+    request, _ = AppsFlyerMapper.map_event(event)
     assert request.appsflyer_id == "device-xyz"
 
 
@@ -116,7 +137,7 @@ def test_map_event_with_device_ids() -> None:
         source_meta={},
     )
 
-    request = AppsFlyerMapper.map_event(event)
+    request, _ = AppsFlyerMapper.map_event(event)
     assert request.device_ids is not None
     assert request.device_ids["advertising_id"] == "ad-id-123"
     assert request.device_ids["idfa"] == "idfa-456"
@@ -148,7 +169,7 @@ def test_map_event_platform_normalization() -> None:
             source_meta={},
         )
 
-        request = AppsFlyerMapper.map_event(event)
+        request, _ = AppsFlyerMapper.map_event(event)
         assert request.platform == expected_platform
 
 
@@ -169,6 +190,6 @@ def test_map_event_with_custom_data() -> None:
         source_meta={},
     )
 
-    request = AppsFlyerMapper.map_event(event)
+    request, _ = AppsFlyerMapper.map_event(event)
     assert request.event_value["user_segment"] == "premium"
     assert request.event_value["referral_code"] == "FRIEND123"

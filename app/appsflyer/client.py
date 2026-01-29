@@ -17,7 +17,7 @@ class AppsFlyerClient:
         self.settings = settings
         self.base_url = settings.appsflyer_base_url.rstrip("/")
         self.dev_key = settings.appsflyer_dev_key
-        self.app_id = settings.appsflyer_app_id
+        self.default_app_id = settings.appsflyer_default_app_id
         self.timeout = httpx.Timeout(
             connect=settings.appsflyer_timeout_seconds,
             read=settings.appsflyer_timeout_seconds,
@@ -29,12 +29,14 @@ class AppsFlyerClient:
         self,
         request: AppsFlyerRequest,
         event_id: str,
+        app_id: str | None = None,
     ) -> AppsFlyerResponse:
         """Send event to AppsFlyer API.
 
         Args:
             request: AppsFlyer request model
             event_id: Internal event ID for logging
+            app_id: AppsFlyer app ID (uses default if not provided)
 
         Returns:
             AppsFlyer response model
@@ -42,8 +44,17 @@ class AppsFlyerClient:
         Raises:
             AppsFlyerError: If request fails
         """
+        # Use provided app_id or fallback to default
+        target_app_id = app_id or self.default_app_id
+        if not target_app_id:
+            raise AppsFlyerError(
+                "AppsFlyer app_id not configured and not provided in request",
+                status_code=None,
+                retryable=False,
+            )
+
         # Build URL
-        url = f"{self.base_url}/inappevent/{self.app_id}"
+        url = f"{self.base_url}/inappevent/{target_app_id}"
 
         # Build headers
         headers = {

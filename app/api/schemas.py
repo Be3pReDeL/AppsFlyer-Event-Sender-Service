@@ -9,6 +9,12 @@ from pydantic import BaseModel, Field, field_validator
 class TrackingRequestBase(BaseModel):
     """Base model for tracking requests."""
 
+    # AppsFlyer target app
+    app_id: str | None = Field(
+        None,
+        description="AppsFlyer app ID (for iOS: id123456789, for Android: com.example.app). Uses default if not provided.",
+    )
+
     # AppsFlyer identifiers
     appsflyer_id: str | None = Field(None, description="AppsFlyer device ID")
     customer_user_id: str | None = Field(None, description="Customer user ID")

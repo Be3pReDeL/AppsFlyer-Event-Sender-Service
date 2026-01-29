@@ -8,13 +8,10 @@
 ## Endpoint
 
 ```
-POST https://api2.appsflyer.com/inappevent/{app_id}
-```
-
-Альтернативный (более новый):
-```
 POST https://api3.appsflyer.com/inappevent/{app_id}
 ```
+
+> **Note**: Используется API v3 (более новая версия)
 
 ## Аутентификация
 

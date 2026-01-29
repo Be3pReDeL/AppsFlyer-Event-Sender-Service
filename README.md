@@ -47,12 +47,14 @@ curl http://localhost:8000/health/ready
 | `/health/live` | GET | Liveness probe |
 | `/health/ready` | GET | Readiness probe (проверяет Redis) |
 
-### Tracking (в разработке)
+### Tracking
 
 | Endpoint | Метод | Описание |
 |----------|-------|----------|
 | `/v1/track/registration` | GET/POST | Событие регистрации |
-| `/v1/track/purchase` | GET/POST | Событие покупки |
+| `/v1/track/purchase` | GET/POST | Событие покупки (требует revenue, currency) |
+
+**Примеры запросов**: см. [docs/api_examples.md](docs/api_examples.md)
 
 ## Конфигурация
 
@@ -111,8 +113,39 @@ docs/
 docker/
 ```
 
+## Примеры использования
+
+### Регистрация
+
+```bash
+curl -X GET "http://localhost:8000/v1/track/registration?\
+token=YOUR_TOKEN&\
+app_id=id123456789&\
+appsflyer_id=1658954220-1234567890&\
+customer_user_id=user_123&\
+platform=ios"
+```
+
+### Покупка
+
+```bash
+curl -X POST "http://localhost:8000/v1/track/purchase?token=YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "app_id": "com.example.myapp",
+    "appsflyer_id": "1658954220-9876543210",
+    "revenue": 19.99,
+    "currency": "USD",
+    "product_id": "premium_monthly",
+    "platform": "Android"
+  }'
+```
+
+Больше примеров: [docs/api_examples.md](docs/api_examples.md)
+
 ## Документация
 
+- [Примеры API запросов](docs/api_examples.md)
 - [Архитектурные решения](docs/decisions.md)
 - [Использованные источники](docs/references.md)
 - [AppsFlyer API](docs/appsflyer_api.md)

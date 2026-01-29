@@ -14,9 +14,9 @@ from app.core.exceptions import AppsFlyerError
 def settings() -> Settings:
     """Create test settings."""
     return Settings(
-        appsflyer_base_url="https://api2.appsflyer.com",
+        appsflyer_base_url="https://api3.appsflyer.com",
         appsflyer_dev_key="test-dev-key",
-        appsflyer_app_id="com.test.app",
+        appsflyer_default_app_id="com.test.app",
         appsflyer_timeout_seconds=5.0,
     )
 
@@ -47,7 +47,7 @@ async def test_send_event_success(
 ) -> None:
     """Test successful event send."""
     # Mock successful response
-    respx.post("https://api2.appsflyer.com/inappevent/com.test.app").mock(
+    respx.post("https://api3.appsflyer.com/inappevent/com.test.app").mock(
         return_value=httpx.Response(
             200,
             json={"status": "success", "message": "Event received successfully."},
@@ -67,7 +67,7 @@ async def test_send_event_success_ok_string(
     sample_request: AppsFlyerRequest,
 ) -> None:
     """Test successful response with 'OK' string."""
-    respx.post("https://api2.appsflyer.com/inappevent/com.test.app").mock(
+    respx.post("https://api3.appsflyer.com/inappevent/com.test.app").mock(
         return_value=httpx.Response(200, text='"OK"')
     )
 
@@ -83,7 +83,7 @@ async def test_send_event_400_bad_request(
     sample_request: AppsFlyerRequest,
 ) -> None:
     """Test 400 Bad Request (non-retryable)."""
-    respx.post("https://api2.appsflyer.com/inappevent/com.test.app").mock(
+    respx.post("https://api3.appsflyer.com/inappevent/com.test.app").mock(
         return_value=httpx.Response(
             400,
             json={"status": "error", "message": "Missing mandatory fields"},
@@ -106,7 +106,7 @@ async def test_send_event_401_unauthorized(
     sample_request: AppsFlyerRequest,
 ) -> None:
     """Test 401 Unauthorized (non-retryable)."""
-    respx.post("https://api2.appsflyer.com/inappevent/com.test.app").mock(
+    respx.post("https://api3.appsflyer.com/inappevent/com.test.app").mock(
         return_value=httpx.Response(401, json={"status": "error", "message": "Invalid dev_key"})
     )
 
@@ -125,7 +125,7 @@ async def test_send_event_429_rate_limit(
     sample_request: AppsFlyerRequest,
 ) -> None:
     """Test 429 Rate Limit (retryable)."""
-    respx.post("https://api2.appsflyer.com/inappevent/com.test.app").mock(
+    respx.post("https://api3.appsflyer.com/inappevent/com.test.app").mock(
         return_value=httpx.Response(
             429,
             headers={"Retry-After": "60"},
@@ -149,7 +149,7 @@ async def test_send_event_500_server_error(
     sample_request: AppsFlyerRequest,
 ) -> None:
     """Test 500 Internal Server Error (retryable)."""
-    respx.post("https://api2.appsflyer.com/inappevent/com.test.app").mock(
+    respx.post("https://api3.appsflyer.com/inappevent/com.test.app").mock(
         return_value=httpx.Response(500, json={"status": "error", "message": "Internal error"})
     )
 
@@ -168,7 +168,7 @@ async def test_send_event_timeout(
     sample_request: AppsFlyerRequest,
 ) -> None:
     """Test timeout error (retryable)."""
-    respx.post("https://api2.appsflyer.com/inappevent/com.test.app").mock(
+    respx.post("https://api3.appsflyer.com/inappevent/com.test.app").mock(
         side_effect=httpx.TimeoutException("Connection timeout")
     )
 
@@ -188,7 +188,7 @@ async def test_send_event_network_error(
     sample_request: AppsFlyerRequest,
 ) -> None:
     """Test network error (retryable)."""
-    respx.post("https://api2.appsflyer.com/inappevent/com.test.app").mock(
+    respx.post("https://api3.appsflyer.com/inappevent/com.test.app").mock(
         side_effect=httpx.ConnectError("Connection refused")
     )
 

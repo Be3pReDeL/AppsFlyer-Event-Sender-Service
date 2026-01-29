@@ -67,6 +67,7 @@ async def track_registration_get(
     request: Request,
     auth: Annotated[dict, Depends(get_current_auth)],
     producer: Annotated[EventProducer, Depends(_get_producer)],
+    app_id: str | None = None,
     appsflyer_id: str | None = None,
     customer_user_id: str | None = None,
     device_id: str | None = None,
@@ -77,6 +78,7 @@ async def track_registration_get(
     """Track registration event via GET request."""
     # Build request model from query parameters
     event_data = RegistrationRequest(
+        app_id=app_id,
         appsflyer_id=appsflyer_id,
         customer_user_id=customer_user_id,
         device_id=device_id,
@@ -126,6 +128,7 @@ async def track_purchase_get(
     request: Request,
     auth: Annotated[dict, Depends(get_current_auth)],
     producer: Annotated[EventProducer, Depends(_get_producer)],
+    app_id: str | None = None,
     revenue: float | None = None,
     currency: str | None = None,
     appsflyer_id: str | None = None,
@@ -147,6 +150,7 @@ async def track_purchase_get(
 
     # Build request model from query parameters
     event_data = PurchaseRequest(
+        app_id=app_id,
         revenue=revenue,
         currency=currency,
         appsflyer_id=appsflyer_id,
