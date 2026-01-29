@@ -1,5 +1,5 @@
 # Разработка приложения по техзаданию
-_Exported on 29.01.2026 at 21:42:20 GMT+3 from Cursor (2.4.22)_
+_Exported on 29.01.2026 at 21:45:13 GMT+3 from Cursor (2.4.22)_
 
 ---
 
@@ -927,4 +927,94 @@ curl http://your-server:8000/metrics
 
 **Все тесты**: 55/55 ✅  
 **Коммит**: `refactor(api): change POST endpoints to use query params for Keitaro`
+
+---
+
+**User**
+
+Verify these issues exist and fix them:
+
+Bug 1:
+Functions `_get_redis` and `_get_producer` are defined twice in the file. The second definitions (lines 247-257) shadow the first ones (lines 28-51), causing the safety check for Redis unavailability to be bypassed. The first definition properly validates that Redis is not None and raises a 503 HTTPException. The second definition lacks this check and will return None, causing AttributeErrors downstream instead of proper error handling.
+
+ @app/api/routes.py:246-257 @app/api/routes.py:27-51 
+
+---
+
+**Cursor**
+
+Подтверждаю проблему. Функции `_get_redis` и `_get_producer` определены дважды. Вторые определения (строки 247-257) затеняют первые (строки 28-51) и не содержат критическую проверку безопасности на `redis is None`, что приводит к обходу обработки ошибки 503.
+
+## ✅ Баг исправлен
+
+### Проблема
+
+Функции `_get_redis` и `_get_producer` в [`app/api/routes.py`](app/api/routes.py) были определены **дважды**:
+
+**Первое определение (строки 28-51)** — с проверкой безопасности:
+
+```28:43:app/api/routes.py
+async def _get_redis(request: Request) -> aioredis.Redis:
+    """Get Redis client from app state.
+
+    Raises:
+        HTTPException: 503 if Redis is not available
+    """
+    from fastapi import HTTPException
+
+    redis = request.app.state.redis
+    if redis is None:
+        logger.error("redis_unavailable", message="Redis client not initialized")
+        raise HTTPException(
+            status_code=503,
+            detail="Service temporarily unavailable (Redis connection failed)",
+        )
+    return redis
+```
+
+**Второе определение (строки 247-257)** — без проверки:
+
+```python
+async def _get_redis(request: Request) -> aioredis.Redis:
+    """Get Redis client from app state."""
+    return request.app.state.redis  # ❌ Нет проверки на None
+```
+
+Python использовал **второе определение**, которое затеняло первое. Это приводило к обходу проверки безопасности и вызывало `AttributeError` вместо корректной обработки ошибки `503 Service Unavailable`.
+
+---
+
+### Исправление
+
+Удалены дублирующиеся определения (строки 247-257). Оставлены только оригинальные определения с проверкой безопасности.
+
+```python
+# ✅ Теперь используется только одно определение с проверкой Redis availability
+async def _get_redis(request: Request) -> aioredis.Redis:
+    """Get Redis client from app state."""
+    redis = request.app.state.redis
+    if redis is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Service temporarily unavailable (Redis connection failed)",
+        )
+    return redis
+```
+
+---
+
+### Верификация
+
+**Тесты (55/55 passed):**
+- `test_tracking_endpoint_redis_unavailable` — подтверждает корректную обработку 503
+- `test_tracking_endpoint_redis_available` — проверяет нормальную работу
+
+**Коммит:**
+```
+fix(api): remove duplicate _get_redis/_get_producer definitions
+```
+
+**Обновлено:**
+- [`app/api/routes.py`](app/api/routes.py) — удалены дубликаты
+- [`.cursor/context/context.md`](.cursor/context/context.md) — задокументирован Bug 5
 

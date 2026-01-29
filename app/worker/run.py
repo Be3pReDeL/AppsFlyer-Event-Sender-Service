@@ -1,6 +1,7 @@
 """Worker entry point for processing events from Redis Streams."""
 
 import asyncio
+import random
 import signal
 import sys
 
@@ -13,6 +14,7 @@ from app.core.exceptions import AppsFlyerError
 from app.core.logging import get_logger, setup_logging
 from app.core.models import InternalEvent
 from app.queue.consumer import EventConsumer, get_consumer
+from app.queue.producer import EventProducer, get_producer
 
 # Initialize logging
 setup_logging()
@@ -29,7 +31,9 @@ class Worker:
         self._shutdown_event = asyncio.Event()
         self.redis: aioredis.Redis | None = None
         self.consumer: EventConsumer | None = None
+        self.producer: EventProducer | None = None
         self.appsflyer_client: AppsFlyerClient | None = None
+        self._last_pending_check = 0.0
 
     async def start(self) -> None:
         """Start the worker."""
@@ -48,8 +52,9 @@ class Worker:
             logger.error("redis_connection_failed", error=str(e))
             sys.exit(1)
 
-        # Create consumer
+        # Create consumer and producer
         self.consumer = get_consumer(self.redis, self.settings)
+        self.producer = get_producer(self.redis, self.settings)
 
         # Ensure consumer group exists
         try:
@@ -73,8 +78,16 @@ class Worker:
 
     async def _process_loop(self) -> None:
         """Main processing loop."""
+        import time
+
         while self.running:
             try:
+                # Periodically reclaim pending messages (every 30 seconds)
+                now = time.time()
+                if now - self._last_pending_check > 30:
+                    await self._reclaim_pending_messages()
+                    self._last_pending_check = now
+
                 # Read events from stream
                 events = await self.consumer.read_events(count=10, block_ms=5000)
 
@@ -103,8 +116,37 @@ class Worker:
 
         logger.info("processing_loop_stopped")
 
+    async def _reclaim_pending_messages(self) -> None:
+        """Reclaim and process pending messages that have been idle too long."""
+        try:
+            pending = await self.consumer.get_pending_messages(
+                min_idle_ms=self.settings.pending_claim_ms
+            )
+
+            if pending:
+                logger.info(
+                    "reclaiming_pending_messages",
+                    count=len(pending),
+                    min_idle_ms=self.settings.pending_claim_ms,
+                )
+
+                for message_id, fields in pending:
+                    try:
+                        event = InternalEvent.from_stream_fields(fields)
+                        await self._process_event(str(message_id), event)
+                    except Exception as e:
+                        logger.error(
+                            "pending_message_processing_failed",
+                            message_id=message_id,
+                            error=str(e),
+                        )
+                        # Will be reclaimed again or moved to DLQ
+
+        except Exception as e:
+            logger.error("pending_reclaim_failed", error=str(e))
+
     async def _process_event(self, message_id: str, event: InternalEvent) -> None:
-        """Process a single event.
+        """Process a single event with retry logic.
 
         Args:
             message_id: Redis Stream message ID
@@ -117,6 +159,22 @@ class Worker:
             event_type=event.event_type,
             attempt=event.attempt,
         )
+
+        # Check if max attempts exceeded
+        if event.attempt >= self.settings.max_attempts:
+            logger.error(
+                "max_attempts_exceeded",
+                event_id=event.event_id,
+                attempt=event.attempt,
+                max_attempts=self.settings.max_attempts,
+            )
+            await self.producer.move_to_dlq(
+                event=event,
+                reason="max_attempts_exceeded",
+                last_error=f"Failed after {event.attempt} attempts",
+            )
+            await self.consumer.ack_message(message_id)
+            return
 
         try:
             # Map internal event to AppsFlyer request
@@ -136,6 +194,9 @@ class Worker:
                 af_status=af_response.status,
             )
 
+            # Mark as processed for deduplication
+            await self.producer.mark_processed(event.event_id)
+
             # Acknowledge message on success
             await self.consumer.ack_message(message_id)
 
@@ -154,21 +215,95 @@ class Worker:
                 error=str(e),
                 retryable=e.retryable,
                 status_code=e.status_code,
+                attempt=event.attempt,
             )
-            # Don't ack - will be retried or moved to DLQ
-            # TODO: Implement retry logic in next stage
-            raise
+
+            if not e.retryable:
+                # Non-retryable error (4xx) - move to DLQ immediately
+                logger.error(
+                    "non_retryable_error",
+                    event_id=event.event_id,
+                    status_code=e.status_code,
+                )
+                await self.producer.move_to_dlq(
+                    event=event,
+                    reason="non_retryable_appsflyer_error",
+                    last_error=str(e),
+                )
+                await self.consumer.ack_message(message_id)
+                return
+
+            # Retryable error - calculate backoff and wait
+            backoff_delay = self._calculate_backoff(event.attempt)
+            logger.info(
+                "retrying_event",
+                event_id=event.event_id,
+                attempt=event.attempt,
+                backoff_seconds=backoff_delay,
+            )
+
+            await asyncio.sleep(backoff_delay)
+
+            # Increment attempt and re-enqueue
+            event.attempt += 1
+            await self.producer.enqueue(event)
+
+            # Ack original message (new one will be processed in next iteration)
+            await self.consumer.ack_message(message_id)
 
         except ValueError as e:
-            # Mapping error (missing required fields)
+            # Mapping error (missing required fields) - non-retryable
             logger.error(
                 "event_mapping_failed",
                 event_id=event.event_id,
                 message_id=message_id,
                 error=str(e),
             )
-            # TODO: Move to DLQ (non-retryable mapping error)
-            raise
+            await self.producer.move_to_dlq(
+                event=event,
+                reason="mapping_error",
+                last_error=str(e),
+            )
+            await self.consumer.ack_message(message_id)
+
+        except Exception as e:
+            # Unexpected error - treat as retryable but with caution
+            logger.exception(
+                "unexpected_error",
+                event_id=event.event_id,
+                message_id=message_id,
+                error=str(e),
+            )
+
+            # Increment attempt and re-enqueue
+            event.attempt += 1
+            backoff_delay = self._calculate_backoff(event.attempt)
+            await asyncio.sleep(backoff_delay)
+            await self.producer.enqueue(event)
+            await self.consumer.ack_message(message_id)
+
+    def _calculate_backoff(self, attempt: int) -> float:
+        """Calculate exponential backoff with jitter.
+
+        Args:
+            attempt: Current attempt number (0-based)
+
+        Returns:
+            Backoff delay in seconds
+        """
+        # Exponential backoff: base * (2 ^ attempt)
+        delay = self.settings.backoff_base_seconds * (2**attempt)
+
+        # Cap at max
+        delay = min(delay, self.settings.backoff_max_seconds)
+
+        # Add jitter (±25%)
+        jitter_range = delay * 0.25
+        jitter = random.uniform(-jitter_range, jitter_range)
+        delay += jitter
+
+        # Ensure non-negative
+        return max(0.1, delay)
 
     async def stop(self) -> None:
         """Stop the worker gracefully."""

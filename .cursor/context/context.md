@@ -8,9 +8,9 @@
 - [x] **Endpoint'ы + auth + валидация**: Реализованы /v1/track/registration и /v1/track/purchase с token и HMAC auth
 - [x] **Очередь Redis Streams + базовый worker**: Producer, Consumer, InternalEvent model, дедупликация
 - [x] **AppsFlyer client + mapper**: HTTP client, mapper, интеграция с worker
+- [x] **Надёжность (retry/backoff/DLQ/pending reclaim)**: Retry logic с exponential backoff + jitter, DLQ после MAX_ATTEMPTS, reclaim pending messages
 
 ### В ожидании
-- [ ] Надёжность (retry/backoff/DLQ/dedup/pending reclaim)
 - [ ] Observability + hardening + финальная документация и тесты
 
 ---
@@ -261,8 +261,53 @@ docker/
 
 **Тесты**: `test_tracking_endpoint_redis_unavailable`, `test_tracking_endpoint_redis_available`
 
+## Реализованные фичи (Этап 5: Надёжность)
+
+### Worker Retry Logic (`app/worker/run.py`)
+- **Exponential backoff с jitter**:
+  - Формула: `delay = base * (2^attempt)` с cap на `BACKOFF_MAX_SECONDS`
+  - Jitter: ±25% для предотвращения thundering herd
+  - Минимальная задержка: 0.1s
+- **MAX_ATTEMPTS check**: события с `attempt >= MAX_ATTEMPTS` → DLQ
+- **Retryable errors** (5xx, 429, timeout, network):
+  - Sleep backoff
+  - Increment attempt
+  - Re-enqueue в main stream
+  - Ack original message
+- **Non-retryable errors** (4xx, mapping errors):
+  - Immediate move to DLQ
+  - Ack message
+- **mark_processed()**: устанавливает dedup key после успешной отправки
+
+### Reclaim Pending Messages
+- **Периодическая проверка**: каждые 30 секунд в processing loop
+- **xautoclaim**: reclaim messages idle > `PENDING_CLAIM_MS` (60s по умолчанию)
+- **Обработка**: reclaimed messages обрабатываются так же как новые
+- **Защита от зависания**: события не теряются если worker падает
+
+### Dead Letter Queue (DLQ)
+- **Причины попадания в DLQ**:
+  - `max_attempts_exceeded` — исчерпаны попытки отправки
+  - `non_retryable_appsflyer_error` — 4xx ошибка от AppsFlyer
+  - `mapping_error` — ошибка валидации/маппинга события
+- **Метаданные**: `dlq_reason`, `last_error` (обрезано до 500 символов)
+- **Stream**: `events:dlq` (конфигурируемо)
+
+### Тесты (64 passed)
+- **test_worker_retry.py**: 9 новых тестов
+  - Exponential backoff calculation
+  - MAX_ATTEMPTS → DLQ
+  - Retryable errors → re-enqueue
+  - Non-retryable errors → DLQ
+  - Mapping errors → DLQ
+  - Successful processing → mark_processed + ack
+  - Pending messages reclaim
+  - 429 rate limit handling
+  - Unexpected errors retry
+
 ## Следующие шаги
 
-1. Реализовать retry logic с exponential backoff + jitter
-2. Реализовать перенос в DLQ после MAX_ATTEMPTS
-3. Реализовать reclaim pending messages в worker loop
+1. Финальная документация (README.md, API examples)
+2. Rate limiting implementation
+3. Smoke/load test
+4. Docker Compose verification
