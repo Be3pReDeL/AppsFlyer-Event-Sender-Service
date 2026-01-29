@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     )
     appsflyer_timeout_seconds: float = Field(default=5.0, description="AppsFlyer API timeout")
     appsflyer_dev_key: str = Field(default="", description="AppsFlyer dev key for authentication")
+    appsflyer_app_id: str = Field(
+        default="",
+        description="AppsFlyer app ID (for iOS: prefix with 'id', for Android: package name)",
+    )
 
     # Rate limiting
     rate_limit_enabled: bool = Field(default=True, description="Enable rate limiting")

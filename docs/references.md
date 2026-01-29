@@ -20,5 +20,7 @@
 - **Использовано**: Конфигурация через environment variables и .env файлы
 
 ## AppsFlyer API
-- **Источник**: Будет получен через Context7 на этапе интеграции
+- **Источник**: Context7 MCP - `/websites/dev_appsflyer_hc_reference`
+- **Дата обращения**: 2026-01-29
+- **Использовано**: S2S Events API endpoint, authentication, request/response models
 - **Документация**: `docs/appsflyer_api.md`

@@ -6,7 +6,10 @@ import sys
 
 import redis.asyncio as aioredis
 
+from app.appsflyer.client import AppsFlyerClient, get_client
+from app.appsflyer.mapper import AppsFlyerMapper
 from app.core.config import get_settings
+from app.core.exceptions import AppsFlyerError
 from app.core.logging import get_logger, setup_logging
 from app.core.models import InternalEvent
 from app.queue.consumer import EventConsumer, get_consumer
@@ -26,6 +29,7 @@ class Worker:
         self._shutdown_event = asyncio.Event()
         self.redis: aioredis.Redis | None = None
         self.consumer: EventConsumer | None = None
+        self.appsflyer_client: AppsFlyerClient | None = None
 
     async def start(self) -> None:
         """Start the worker."""
@@ -53,6 +57,9 @@ class Worker:
         except Exception as e:
             logger.error("consumer_group_setup_failed", error=str(e))
             sys.exit(1)
+
+        # Create AppsFlyer client
+        self.appsflyer_client = get_client(self.settings)
 
         logger.info(
             "worker_started",
@@ -111,19 +118,53 @@ class Worker:
             attempt=event.attempt,
         )
 
-        # TODO: Next stage - send to AppsFlyer
-        # For now, just acknowledge immediately (simulating success)
-        await asyncio.sleep(0.1)  # Simulate processing
+        try:
+            # Map internal event to AppsFlyer request
+            af_request = AppsFlyerMapper.map_event(event)
 
-        # Acknowledge message
-        await self.consumer.ack_message(message_id)
+            # Send to AppsFlyer
+            af_response = await self.appsflyer_client.send_event(af_request, event.event_id)
 
-        logger.info(
-            "event_processed",
-            message_id=message_id,
-            event_id=event.event_id,
-            event_type=event.event_type,
-        )
+            logger.info(
+                "appsflyer_send_success",
+                event_id=event.event_id,
+                message_id=message_id,
+                af_status=af_response.status,
+            )
+
+            # Acknowledge message on success
+            await self.consumer.ack_message(message_id)
+
+            logger.info(
+                "event_processed",
+                message_id=message_id,
+                event_id=event.event_id,
+                event_type=event.event_type,
+            )
+
+        except AppsFlyerError as e:
+            logger.warning(
+                "appsflyer_send_failed",
+                event_id=event.event_id,
+                message_id=message_id,
+                error=str(e),
+                retryable=e.retryable,
+                status_code=e.status_code,
+            )
+            # Don't ack - will be retried or moved to DLQ
+            # TODO: Implement retry logic in next stage
+            raise
+
+        except ValueError as e:
+            # Mapping error (missing required fields)
+            logger.error(
+                "event_mapping_failed",
+                event_id=event.event_id,
+                message_id=message_id,
+                error=str(e),
+            )
+            # TODO: Move to DLQ (non-retryable mapping error)
+            raise
 
     async def stop(self) -> None:
         """Stop the worker gracefully."""

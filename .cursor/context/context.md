@@ -7,9 +7,9 @@
 - [x] **Bugfix**: Исправлен lru_cache в get_settings() и resource leak в _check_redis()
 - [x] **Endpoint'ы + auth + валидация**: Реализованы /v1/track/registration и /v1/track/purchase с token и HMAC auth
 - [x] **Очередь Redis Streams + базовый worker**: Producer, Consumer, InternalEvent model, дедупликация
+- [x] **AppsFlyer client + mapper**: HTTP client, mapper, интеграция с worker
 
 ### В ожидании
-- [ ] AppsFlyer client + mapper по докам Context7
 - [ ] Надёжность (retry/backoff/DLQ/dedup/pending reclaim)
 - [ ] Observability + hardening + финальная документация и тесты
 
@@ -53,7 +53,10 @@ app/
 ├── queue/
 │   ├── producer.py   # EventProducer для Redis Streams
 │   └── consumer.py   # EventConsumer с Consumer Groups
-├── appsflyer/        # AppsFlyer client (пусто)
+├── appsflyer/
+│   ├── models.py     # AppsFlyer API models
+│   ├── mapper.py     # InternalEvent → AppsFlyer mapping
+│   └── client.py     # HTTP client с httpx
 └── worker/
     └── run.py        # Worker с processing loop
 tests/
@@ -62,7 +65,11 @@ tests/
 ├── test_auth.py      # Authentication tests (8)
 ├── test_routes.py    # Tracking endpoints tests (12)
 ├── test_queue.py     # Queue producer/consumer tests (10)
-└── test_integration.py # End-to-end integration tests (2)
+├── test_integration.py # End-to-end integration tests (2)
+├── test_mapper.py    # AppsFlyer mapper tests (7)
+├── test_appsflyer_client.py # AppsFlyer client tests (8)
+├── test_models.py    # InternalEvent serialization tests (2)
+└── test_redis_unavailable.py # Redis failure tests (2)
 docs/
 ├── references.md     # Использованная документация
 ├── decisions.md      # Архитектурные решения
@@ -101,6 +108,7 @@ docker/
 | FastAPI | `/websites/fastapi_tiangolo` | Lifespan, DI |
 | Redis-py | `/redis/redis-py` | Streams, Consumer Groups |
 | Pydantic Settings | `/pydantic/pydantic-settings` | ENV config |
+| AppsFlyer API | `/websites/dev_appsflyer_hc_reference` | S2S Events API |
 
 ---
 
@@ -190,8 +198,57 @@ docker/
 - `test_integration.py`: 2 integration теста (producer→consumer, dedup flow)
 - Все существующие тесты обновлены для моков Redis/Producer
 
+## Реализованные фичи (Этап 4)
+
+### AppsFlyer API Documentation (`docs/appsflyer_api.md`)
+- Endpoint: `POST https://api2.appsflyer.com/inappevent/{app_id}`
+- Аутентификация: Header `authentication: <dev_key>`
+- Обязательные поля: `appsflyer_id`, `event_name`
+- События: `af_complete_registration`, `af_purchase`
+- Коды ответов: 200 (success), 400/401/403 (non-retryable), 429/5xx (retryable)
+
+### AppsFlyer Models (`app/appsflyer/models.py`)
+- **AppsFlyerRequest**: request model для S2S API
+  - appsflyer_id, event_name, event_value, customer_user_id, platform, event_time
+- **AppsFlyerResponse**: response model
+
+### AppsFlyer Mapper (`app/appsflyer/mapper.py`)
+- **AppsFlyerMapper.map_event()**: конвертация InternalEvent → AppsFlyerRequest
+- Event name mapping: `registration` → `af_complete_registration`, `purchase` → `af_purchase`
+- Revenue mapping: `revenue` → `af_revenue` (string), `currency` → `af_currency`
+- Platform normalization: `ios/iphone/ipad` → `iOS`, `android` → `Android`
+- Device IDs: `advertising_id`, `idfa`, `android_id` → `device_ids` object
+- Custom data: merge `custom_data` dict в `event_value`
+
+### AppsFlyer Client (`app/appsflyer/client.py`)
+- **AppsFlyerClient**: async HTTP client с httpx
+- Строгие таймауты (connect/read/write/pool)
+- Headers: `authentication: <dev_key>`, `Content-Type: application/json`
+- Обработка ответов:
+  - 2xx → success
+  - 429 → retryable (с Retry-After header)
+  - 4xx → non-retryable (DLQ)
+  - 5xx → retryable
+  - Timeout/Network → retryable
+- Error classification через AppsFlyerError.retryable
+
+### Worker Integration (`app/worker/run.py`)
+- Инициализация AppsFlyerClient при старте
+- Processing: map_event() → send_event() → ack()
+- Обработка AppsFlyerError (retryable vs non-retryable)
+- Логирование успеха/ошибок с event_id
+
+### Configuration
+- Добавлено `APPSFLYER_APP_ID` (для iOS: id123, для Android: com.app.name)
+- Обновлён `.env.example` и `docker-compose.yml`
+
+### Тесты (54 passed)
+- `test_mapper.py`: 7 тестов mapper (registration, purchase, platform normalization, custom data)
+- `test_appsflyer_client.py`: 8 тестов client (success, errors, timeout, network)
+- Все тесты используют respx для мокирования HTTP запросов
+
 ## Следующие шаги
 
-1. Получить AppsFlyer API спецификацию через Context7
-2. Реализовать AppsFlyer client с httpx
-3. Реализовать mapper: InternalEvent → AppsFlyer request
+1. Реализовать retry logic с exponential backoff + jitter
+2. Реализовать перенос в DLQ после MAX_ATTEMPTS
+3. Реализовать reclaim pending messages в worker loop
