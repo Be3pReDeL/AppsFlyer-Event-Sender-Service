@@ -73,11 +73,12 @@ def test_registration_get_full_parameters(client: TestClient) -> None:
     assert data["event_id"] == "custom_event_id_123"
 
 
-def test_registration_post_json(client: TestClient) -> None:
-    """Test registration POST endpoint with JSON body."""
+def test_registration_post_query_params(client: TestClient) -> None:
+    """Test registration POST endpoint with query parameters (Keitaro-compatible)."""
     response = client.post(
-        "/v1/track/registration?token=test-token",
-        json={
+        "/v1/track/registration",
+        params={
+            "token": "test-token",
             "appsflyer_id": "device-123",
             "customer_user_id": "user-456",
             "platform": "android",
@@ -138,11 +139,12 @@ def test_purchase_get_missing_currency(client: TestClient) -> None:
     assert "required" in response.json()["error"].lower()
 
 
-def test_purchase_post_json(client: TestClient) -> None:
-    """Test purchase POST endpoint with JSON body."""
+def test_purchase_post_query_params(client: TestClient) -> None:
+    """Test purchase POST endpoint with query parameters (Keitaro-compatible)."""
     response = client.post(
-        "/v1/track/purchase?token=test-token",
-        json={
+        "/v1/track/purchase",
+        params={
+            "token": "test-token",
             "revenue": 19.99,
             "currency": "EUR",
             "appsflyer_id": "device-123",
@@ -162,8 +164,9 @@ def test_purchase_post_json(client: TestClient) -> None:
 def test_purchase_post_invalid_revenue(client: TestClient) -> None:
     """Test that negative revenue returns validation error."""
     response = client.post(
-        "/v1/track/purchase?token=test-token",
-        json={
+        "/v1/track/purchase",
+        params={
+            "token": "test-token",
             "revenue": -10.0,
             "currency": "USD",
             "appsflyer_id": "device-123",
@@ -176,8 +179,9 @@ def test_purchase_post_invalid_revenue(client: TestClient) -> None:
 def test_purchase_post_invalid_currency(client: TestClient) -> None:
     """Test that invalid currency format returns validation error."""
     response = client.post(
-        "/v1/track/purchase?token=test-token",
-        json={
+        "/v1/track/purchase",
+        params={
+            "token": "test-token",
             "revenue": 10.0,
             "currency": "US",  # Too short
             "appsflyer_id": "device-123",

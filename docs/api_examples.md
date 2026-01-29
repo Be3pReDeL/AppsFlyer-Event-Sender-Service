@@ -42,21 +42,20 @@ event_id=reg_custom_id_001"
 }
 ```
 
-### POST запрос (JSON body)
+### POST запрос (query параметры, Keitaro-совместимый)
 
 ```bash
-curl -X POST "http://localhost:8000/v1/track/registration?token=YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "app_id": "id123456789",
-    "appsflyer_id": "1658954220-1234567890",
-    "customer_user_id": "user_12345",
-    "platform": "iOS",
-    "registration_method": "social",
-    "user_email": "user@example.com",
-    "event_id": "reg_abc123"
-  }'
+curl -X POST "http://localhost:8000/v1/track/registration?\
+token=YOUR_TOKEN&\
+app_id=id123456789&\
+appsflyer_id=1658954220-1234567890&\
+customer_user_id=user_12345&\
+platform=ios&\
+registration_method=social&\
+event_id=reg_abc123"
 ```
+
+> **Note**: POST endpoint принимает данные из query-параметров (не из body), так как Keitaro не поддерживает body в POST запросах.
 
 ## Покупка (Purchase)
 
@@ -98,24 +97,24 @@ event_id=purchase_custom_002"
 }
 ```
 
-### POST запрос (JSON body)
+### POST запрос (query параметры, Keitaro-совместимый)
 
 ```bash
-curl -X POST "http://localhost:8000/v1/track/purchase?token=YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "app_id": "com.example.myapp",
-    "appsflyer_id": "1658954220-9876543210",
-    "customer_user_id": "user_67890",
-    "revenue": 49.99,
-    "currency": "USD",
-    "product_id": "premium_yearly",
-    "order_id": "order_abc456",
-    "quantity": 1,
-    "platform": "Android",
-    "event_id": "purchase_def456"
-  }'
+curl -X POST "http://localhost:8000/v1/track/purchase?\
+token=YOUR_TOKEN&\
+app_id=com.example.myapp&\
+appsflyer_id=1658954220-9876543210&\
+customer_user_id=user_67890&\
+revenue=49.99&\
+currency=USD&\
+product_id=premium_yearly&\
+order_id=order_abc456&\
+quantity=1&\
+platform=android&\
+event_id=purchase_def456"
 ```
+
+> **Note**: POST endpoint принимает данные из query-параметров (не из body), так как Keitaro не поддерживает body в POST запросах.
 
 ## Использование HMAC аутентификации
 

@@ -126,20 +126,20 @@ customer_user_id=user_123&\
 platform=ios"
 ```
 
-### Покупка
+### Покупка (POST с query-параметрами)
 
 ```bash
-curl -X POST "http://localhost:8000/v1/track/purchase?token=YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "app_id": "com.example.myapp",
-    "appsflyer_id": "1658954220-9876543210",
-    "revenue": 19.99,
-    "currency": "USD",
-    "product_id": "premium_monthly",
-    "platform": "Android"
-  }'
+curl -X POST "http://localhost:8000/v1/track/purchase?\
+token=YOUR_TOKEN&\
+app_id=com.example.myapp&\
+appsflyer_id=1658954220-9876543210&\
+revenue=19.99&\
+currency=USD&\
+product_id=premium_monthly&\
+platform=android"
 ```
+
+> **Note**: POST endpoints используют query-параметры (совместимость с Keitaro)
 
 Больше примеров: [docs/api_examples.md](docs/api_examples.md)
 
