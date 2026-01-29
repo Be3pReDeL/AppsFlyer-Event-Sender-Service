@@ -9,9 +9,11 @@
 - [x] **Очередь Redis Streams + базовый worker**: Producer, Consumer, InternalEvent model, дедупликация
 - [x] **AppsFlyer client + mapper**: HTTP client, mapper, интеграция с worker
 - [x] **Надёжность (retry/backoff/DLQ/pending reclaim)**: Retry logic с exponential backoff + jitter, DLQ после MAX_ATTEMPTS, reclaim pending messages
+- [x] **Rate Limiting**: Redis-based sliding window rate limiting per token/IP
 
 ### В ожидании
-- [ ] Observability + hardening + финальная документация и тесты
+- [ ] Prometheus metrics instrumentation
+- [ ] Финальная документация и README updates
 
 ---
 
@@ -316,9 +318,63 @@ docker/
   - 429 rate limit handling
   - Unexpected errors retry
 
+## Реализованные фичи (Этап 6: Rate Limiting)
+
+### Rate Limiter (`app/api/rate_limit.py`)
+- **RateLimiter class**: Redis-based sliding window algorithm
+  - Использует Redis Sorted Sets с timestamps как scores
+  - Автоматическая очистка старых entries вне window
+  - TTL на keys для cleanup (2x window seconds)
+- **Sliding window algorithm**:
+  - `zremrangebyscore` удаляет entries старше window
+  - `zcard` подсчитывает текущие requests в window
+  - `zadd` добавляет новый request с current timestamp
+  - Точный контроль частоты запросов
+- **Идентификация**:
+  - Priority: hashed token > IP address
+  - Token hash (SHA256[:16]) для безопасности
+  - Fallback на IP если token отсутствует
+
+### Rate Limit Dependency
+- **check_rate_limit_dependency**: FastAPI dependency
+  - Применяется на все tracking endpoints
+  - Проверяет rate limit перед обработкой
+  - Возвращает 429 с headers при превышении
+- **HTTP Headers**:
+  - `X-RateLimit-Limit`: burst limit
+  - `X-RateLimit-Remaining`: оставшиеся requests
+  - `X-RateLimit-Reset`: unix timestamp reset
+  - `Retry-After`: seconds до reset
+- **Fail-open behavior**: на ошибках Redis пропускает requests
+
+### Интеграция в API
+- Добавлено во все tracking endpoints:
+  - `GET /v1/track/registration`
+  - `POST /v1/track/registration`
+  - `GET /v1/track/purchase`
+  - `POST /v1/track/purchase`
+- Response 429 добавлен в OpenAPI spec
+- Логирование rate limit events
+
+### Конфигурация
+- `RATE_LIMIT_ENABLED`: включить/выключить (default: true)
+- `RATE_LIMIT_RPS`: requests per second limit (default: 100)
+- `RATE_LIMIT_BURST`: burst capacity (default: 200)
+
+### Тесты (77 passed)
+- **test_rate_limit.py**: 8 новых тестов
+  - Allows within limit
+  - Blocks when exceeded
+  - Disabled mode
+  - Cleans old entries
+  - Sets expiry correctly
+  - Calculates remaining
+  - Handles Redis errors gracefully
+  - Uses sliding window algorithm
+
 ## Следующие шаги
 
-1. Финальная документация (README.md, API examples)
-2. Rate limiting implementation
+1. Prometheus metrics instrumentation
+2. Финальная документация (README.md, API examples)
 3. Smoke/load test
 4. Docker Compose verification

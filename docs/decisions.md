@@ -223,3 +223,61 @@ await ack(message)
 **Влияние**:
 - Тесты обновлены для проверки консистентности backoff
 - Метрики `worker_retry_total{attempt}` теперь точнее отражают реальное количество попыток
+
+---
+
+## ADR-011: Redis-based Sliding Window Rate Limiting
+
+**Статус**: Принято
+
+**Контекст**: Production-сервис должен защищаться от злоупотреблений и DDoS-атак. Необходим rate limiting для ограничения частоты запросов per token/IP.
+
+**Решение**: Реализовать Redis-based rate limiting с использованием Sorted Sets и sliding window algorithm.
+
+**Алгоритм**:
+```python
+1. Remove old entries: zremrangebyscore(key, 0, current_time - window)
+2. Count current: count = zcard(key)
+3. If count >= burst: reject (429)
+4. Add request: zadd(key, {current_time: current_time})
+5. Set TTL: expire(key, window * 2)
+```
+
+**Обоснование**:
+- **Sliding window**: более точный контроль vs fixed window (нет "reset burst" проблемы)
+- **Redis Sorted Sets**: эффективная структура для time-series данных
+  - O(log N) для zadd
+  - O(log N + M) для zremrangebyscore
+  - O(1) для zcard
+- **Distributed**: работает с multiple API instances (shared state в Redis)
+- **Configurable**: `RATE_LIMIT_RPS` и `RATE_LIMIT_BURST` через ENV
+- **Fail-open**: на ошибках Redis пропускает requests (availability over strict limiting)
+
+**Идентификация**:
+- **Priority 1**: Hashed token (SHA256[:16]) — защита от token leakage в Redis
+- **Priority 2**: IP address — fallback для requests без token
+- Разные идентификаторы имеют независимые rate limits
+
+**Headers**:
+- `X-RateLimit-Limit`: burst capacity
+- `X-RateLimit-Remaining`: оставшиеся requests
+- `X-RateLimit-Reset`: unix timestamp когда limit сбросится
+- `Retry-After`: seconds до reset (стандарт 429 response)
+
+**Альтернативы (отклонены)**:
+- **Fixed window**: проще, но позволяет burst на границах window (2x rate)
+- **Token bucket**: сложнее реализация в Redis, требует atomic операции
+- **In-memory rate limiting**: не работает с multiple instances, теряется при рестарте
+
+**Риски и митигация**:
+- **Redis latency**: rate limit check добавляет 1-2 Redis операции per request
+  - Митигация: Redis operations быстрые (< 1ms), параллельно с auth check
+- **Redis unavailable**: fail-open behavior
+  - Митигация: health check на Redis connectivity
+- **Clock skew**: timestamps могут отличаться между nodes
+  - Митигация: Redis использует свой clock, consistency гарантируется
+
+**Метрики** (будущее):
+- `rate_limit_blocked_total{identifier_type}` — количество blocked requests
+- `rate_limit_requests_total{identifier_type}` — общее количество requests
+- `rate_limit_remaining{identifier_type}` (gauge) — текущий remaining count

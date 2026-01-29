@@ -8,6 +8,7 @@ import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, Request, status
 
 from app.api.auth import get_current_auth
+from app.api.rate_limit import check_rate_limit_dependency
 from app.api.schemas import (
     ErrorResponse,
     PurchaseRequest,
@@ -61,11 +62,13 @@ async def _get_producer(
         202: {"description": "Event accepted and queued for processing"},
         400: {"model": ErrorResponse, "description": "Validation error"},
         401: {"model": ErrorResponse, "description": "Authentication failed"},
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
     },
 )
 async def track_registration_get(
     request: Request,
     auth: Annotated[dict, Depends(get_current_auth)],
+    rate_limit: Annotated[None, Depends(check_rate_limit_dependency)],
     producer: Annotated[EventProducer, Depends(_get_producer)],
     app_id: str | None = None,
     appsflyer_id: str | None = None,
@@ -100,11 +103,13 @@ async def track_registration_get(
         202: {"description": "Event accepted and queued for processing"},
         400: {"model": ErrorResponse, "description": "Validation error"},
         401: {"model": ErrorResponse, "description": "Authentication failed"},
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
     },
 )
 async def track_registration_post(
     request: Request,
     auth: Annotated[dict, Depends(get_current_auth)],
+    rate_limit: Annotated[None, Depends(check_rate_limit_dependency)],
     producer: Annotated[EventProducer, Depends(_get_producer)],
     app_id: str | None = None,
     appsflyer_id: str | None = None,
@@ -139,11 +144,13 @@ async def track_registration_post(
         202: {"description": "Event accepted and queued for processing"},
         400: {"model": ErrorResponse, "description": "Validation error"},
         401: {"model": ErrorResponse, "description": "Authentication failed"},
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
     },
 )
 async def track_purchase_get(
     request: Request,
     auth: Annotated[dict, Depends(get_current_auth)],
+    rate_limit: Annotated[None, Depends(check_rate_limit_dependency)],
     producer: Annotated[EventProducer, Depends(_get_producer)],
     app_id: str | None = None,
     revenue: float | None = None,
@@ -193,11 +200,13 @@ async def track_purchase_get(
         202: {"description": "Event accepted and queued for processing"},
         400: {"model": ErrorResponse, "description": "Validation error"},
         401: {"model": ErrorResponse, "description": "Authentication failed"},
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
     },
 )
 async def track_purchase_post(
     request: Request,
     auth: Annotated[dict, Depends(get_current_auth)],
+    rate_limit: Annotated[None, Depends(check_rate_limit_dependency)],
     producer: Annotated[EventProducer, Depends(_get_producer)],
     app_id: str | None = None,
     revenue: float | None = None,
