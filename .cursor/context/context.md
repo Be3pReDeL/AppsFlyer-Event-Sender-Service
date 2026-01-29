@@ -112,6 +112,14 @@ docker/
    - `canonical_query` уже содержал `ts=<value>`
    - Код ошибочно добавлял `ts` повторно → `...&ts=123123`
    - Теперь: `message = canonical_query` (без дублирования)
+4. **InternalEvent serialization**: Неправильная сериализация payload/source_meta
+   - `model_dump_json(include={"payload"})` создавал `{"payload": {...}}`
+   - При десериализации получалась неправильная структура
+   - Исправлено на `json.dumps(self.payload)` — правильная сериализация
+5. **Redis unavailability handling**: AttributeError при недоступности Redis
+   - Если Redis не подключился: `app.state.redis = None`
+   - `_get_redis()` возвращал None без проверки → AttributeError в endpoint'ах
+   - Теперь: проверка в `_get_redis()` с HTTPException 503
 
 ---
 
