@@ -56,7 +56,11 @@ class AppsFlyerMapper:
         # Format event_time if available
         event_time = None
         if payload.get("event_time"):
-            event_time = payload["event_time"]
+            # Convert datetime to ISO format string if needed
+            from datetime import datetime
+
+            evt = payload["event_time"]
+            event_time = evt.isoformat() if isinstance(evt, datetime) else str(evt)
         elif event.received_at:
             event_time = event.received_at.isoformat()
 

@@ -281,3 +281,58 @@ await ack(message)
 - `rate_limit_blocked_total{identifier_type}` — количество blocked requests
 - `rate_limit_requests_total{identifier_type}` — общее количество requests
 - `rate_limit_remaining{identifier_type}` (gauge) — текущий remaining count
+
+---
+
+## ADR-012: Единообразная обработка Pydantic ValidationError в GET/POST endpoints
+
+**Статус**: Принято
+
+**Контекст**: GET и POST purchase endpoints имели несогласованную обработку ошибок валидации. POST endpoint оборачивал создание `PurchaseRequest` в try-except блок для преобразования `PydanticValidationError` в HTTP 422, в то время как GET endpoint не делал этого, что приводило к HTTP 500.
+
+**Решение**: Обернуть создание `PurchaseRequest` в try-except блок во всех endpoints (GET и POST) для единообразной обработки ошибок валидации.
+
+**Обоснование**:
+- **Консистентность API**: Одинаковые типы ошибок должны возвращать одинаковые HTTP коды
+- **Правильная семантика**: 422 Unprocessable Entity правильный код для validation errors, не 500 Internal Server Error
+- **Лучший DX**: Клиенты получают структурированные ошибки валидации вместо generic 500
+
+**Код**:
+```python
+try:
+    event_data = PurchaseRequest(...)
+except PydanticValidationError as e:
+    raise HTTPException(status_code=422, detail=e.errors()) from e
+```
+
+**Риски**: Нет. Это исправление бага, улучшающее корректность API.
+
+---
+
+## ADR-013: Явное преобразование datetime в ISO format для event_time
+
+**Статус**: Принято
+
+**Контекст**: В `AppsFlyerMapper.map_event()` значение `event_time` из payload бралось напрямую. Если payload содержал datetime объект из Pydantic (например, `received_at`), он передавался в `AppsFlyerRequest` без сериализации. При попытке JSON-сериализации через httpx это вызывало исключение, так как datetime не JSON-serializable.
+
+**Решение**: Явно конвертировать `event_time` в ISO format string при извлечении из payload:
+
+```python
+if payload.get("event_time"):
+    from datetime import datetime
+    evt = payload["event_time"]
+    event_time = evt.isoformat() if isinstance(evt, datetime) else str(evt)
+elif event.received_at:
+    event_time = event.received_at.isoformat()
+```
+
+**Обоснование**:
+- **Корректность**: datetime объекты должны быть сериализованы в строки перед JSON encoding
+- **Единообразие**: Все datetime значения преобразуются в ISO format одинаково
+- **Отказоустойчивость**: Обрабатывает случаи, когда `event_time` уже строка
+
+**Альтернативы (отклонены)**:
+- **Custom JSON encoder**: Усложняет сериализацию, требует изменений в httpx client
+- **Pydantic serialization**: Уже используется, но `model_dump()` возвращает datetime как есть для dict values
+
+**Риски**: Нет. Это исправление бага, предотвращающее runtime errors при отправке событий.

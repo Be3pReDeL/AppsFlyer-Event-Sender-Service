@@ -165,6 +165,9 @@ async def track_purchase_get(
     event_id: str | None = None,
 ) -> TrackingResponse:
     """Track purchase event via GET request."""
+    from fastapi import HTTPException
+    from pydantic import ValidationError as PydanticValidationError
+
     # Validate required fields
     if revenue is None or currency is None:
         raise ValidationError(
@@ -173,19 +176,23 @@ async def track_purchase_get(
         )
 
     # Build request model from query parameters
-    event_data = PurchaseRequest(
-        app_id=app_id,
-        revenue=revenue,
-        currency=currency,
-        appsflyer_id=appsflyer_id,
-        customer_user_id=customer_user_id,
-        device_id=device_id,
-        platform=platform,
-        product_id=product_id,
-        order_id=order_id,
-        quantity=quantity,
-        event_id=event_id,
-    )
+    try:
+        event_data = PurchaseRequest(
+            app_id=app_id,
+            revenue=revenue,
+            currency=currency,
+            appsflyer_id=appsflyer_id,
+            customer_user_id=customer_user_id,
+            device_id=device_id,
+            platform=platform,
+            product_id=product_id,
+            order_id=order_id,
+            quantity=quantity,
+            event_id=event_id,
+        )
+    except PydanticValidationError as e:
+        # Convert Pydantic validation error to HTTP 422
+        raise HTTPException(status_code=422, detail=e.errors()) from e
 
     return await _process_purchase(request, event_data, auth, producer)
 

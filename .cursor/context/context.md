@@ -276,6 +276,46 @@ docker/
 
 **Тесты**: `test_tracking_endpoint_redis_unavailable`, `test_tracking_endpoint_redis_available`
 
+### Bug 6: Несогласованная обработка PydanticValidationError в GET/POST purchase endpoints
+**Файл**: `app/api/routes.py`
+**Описание**: GET endpoint `/v1/track/purchase` (строки 150-190) не обрабатывал `PydanticValidationError` при создании `PurchaseRequest`, в то время как POST endpoint (строки 206-253) оборачивал создание в try-except блок. Это приводило к тому, что GET возвращал HTTP 500 при validation errors (например, invalid type для `revenue`), а POST корректно возвращал HTTP 422.
+
+**Исправление**: Добавлен try-except блок в GET endpoint для единообразной обработки:
+```python
+try:
+    event_data = PurchaseRequest(...)
+except PydanticValidationError as e:
+    raise HTTPException(status_code=422, detail=e.errors()) from e
+```
+
+**Тесты**: Существующие тесты `test_purchase_post_invalid_revenue`, `test_purchase_post_invalid_currency` проверяют поведение. Аналогичная логика теперь работает и для GET.
+
+**ADR**: ADR-012
+
+### Bug 7: datetime объекты не сериализуются в ISO format для event_time
+**Файл**: `app/appsflyer/mapper.py`
+**Описание**: В методе `map_event()` (строки 58-59), значение `event_time` извлекалось из payload напрямую без проверки типа:
+```python
+if payload.get("event_time"):
+    event_time = payload["event_time"]
+```
+
+Если payload содержал datetime объект из Pydantic (например, когда `event_time` было datetime полем), он передавался в `AppsFlyerRequest` как есть. При попытке JSON сериализации через httpx (`client.post(json=body)` в `app/appsflyer/client.py:79`), datetime объект вызывал TypeError: "Object of type datetime is not JSON serializable".
+
+**Исправление**: Добавлена явная конвертация datetime в ISO format string:
+```python
+if payload.get("event_time"):
+    from datetime import datetime
+    evt = payload["event_time"]
+    event_time = evt.isoformat() if isinstance(evt, datetime) else str(evt)
+elif event.received_at:
+    event_time = event.received_at.isoformat()
+```
+
+**Тесты**: Существующие тесты mapper (`test_mapper.py`) проверяют корректность маппинга. Этот баг проявлялся только в runtime при реальной отправке событий с datetime в payload.
+
+**ADR**: ADR-013
+
 ## Реализованные фичи (Этап 5: Надёжность)
 
 ### Worker Retry Logic (`app/worker/run.py`)
