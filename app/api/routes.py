@@ -244,19 +244,6 @@ async def track_purchase_post(
     return await _process_purchase(request, event_data, auth, producer)
 
 
-async def _get_redis(request: Request) -> aioredis.Redis:
-    """Get Redis client from app state."""
-    return request.app.state.redis
-
-
-async def _get_producer(
-    redis: Annotated[aioredis.Redis, Depends(_get_redis)],
-    settings: Annotated[Settings, Depends(get_settings)],
-) -> EventProducer:
-    """Get event producer instance."""
-    return get_producer(redis, settings)
-
-
 async def _process_registration(
     request: Request,  # noqa: ARG001
     event_data: RegistrationRequest,
