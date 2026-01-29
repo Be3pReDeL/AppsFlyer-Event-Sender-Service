@@ -115,8 +115,8 @@ async def verify_hmac_auth(
         f"{k}={v}" for k, v in sorted(query_params.items())
     )
 
-    # Compute HMAC
-    message = f"{canonical_query}{ts}".encode()
+    # Compute HMAC (canonical_query already contains ts, no need to append again)
+    message = canonical_query.encode()
     expected_sig = hmac.new(
         secret.encode("utf-8"),
         message,

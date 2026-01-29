@@ -134,8 +134,8 @@ def test_hmac_auth_valid_signature(client_with_token: TestClient, monkeypatch: p
     }
     canonical_query = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
 
-    # Compute signature
-    message = f"{canonical_query}{ts}".encode()
+    # Compute signature (canonical_query already contains ts)
+    message = canonical_query.encode()
     sig = hmac.new(secret.encode("utf-8"), message, hashlib.sha256).hexdigest()
 
     # Make request
