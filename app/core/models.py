@@ -21,13 +21,15 @@ class InternalEvent(BaseModel):
 
     def to_stream_fields(self) -> dict[str, str]:
         """Convert to Redis Stream fields (all values must be strings)."""
+        import json
+
         return {
             "event_type": self.event_type,
             "event_id": self.event_id,
             "received_at": self.received_at.isoformat(),
-            "payload": self.model_dump_json(include={"payload"}),
+            "payload": json.dumps(self.payload),
             "attempt": str(self.attempt),
-            "source_meta": self.model_dump_json(include={"source_meta"}),
+            "source_meta": json.dumps(self.source_meta),
         }
 
     @classmethod

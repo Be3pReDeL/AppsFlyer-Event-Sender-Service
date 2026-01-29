@@ -26,8 +26,21 @@ router = APIRouter(prefix="/v1/track", tags=["Tracking"])
 
 
 async def _get_redis(request: Request) -> aioredis.Redis:
-    """Get Redis client from app state."""
-    return request.app.state.redis
+    """Get Redis client from app state.
+
+    Raises:
+        HTTPException: 503 if Redis is not available
+    """
+    from fastapi import HTTPException
+
+    redis = request.app.state.redis
+    if redis is None:
+        logger.error("redis_unavailable", message="Redis client not initialized")
+        raise HTTPException(
+            status_code=503,
+            detail="Service temporarily unavailable (Redis connection failed)",
+        )
+    return redis
 
 
 async def _get_producer(
