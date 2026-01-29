@@ -6,9 +6,9 @@
 - [x] **Bootstrap**: базовая структура проекта, конфигурация, health endpoints, Docker
 - [x] **Bugfix**: Исправлен lru_cache в get_settings() и resource leak в _check_redis()
 - [x] **Endpoint'ы + auth + валидация**: Реализованы /v1/track/registration и /v1/track/purchase с token и HMAC auth
+- [x] **Очередь Redis Streams + базовый worker**: Producer, Consumer, InternalEvent model, дедупликация
 
 ### В ожидании
-- [ ] Очередь Redis Streams + базовый worker
 - [ ] AppsFlyer client + mapper по докам Context7
 - [ ] Надёжность (retry/backoff/DLQ/dedup/pending reclaim)
 - [ ] Observability + hardening + финальная документация и тесты
@@ -48,16 +48,21 @@ app/
 ├── core/
 │   ├── config.py     # Settings через pydantic-settings
 │   ├── logging.py    # Structlog с маскированием
-│   └── exceptions.py # Custom exceptions
-├── queue/            # Redis Streams (пусто)
+│   ├── exceptions.py # Custom exceptions
+│   └── models.py     # InternalEvent model
+├── queue/
+│   ├── producer.py   # EventProducer для Redis Streams
+│   └── consumer.py   # EventConsumer с Consumer Groups
 ├── appsflyer/        # AppsFlyer client (пусто)
 └── worker/
-    └── run.py        # Worker entry point
+    └── run.py        # Worker с processing loop
 tests/
 ├── conftest.py       # Fixtures
-├── test_health.py    # Health endpoint tests
-├── test_auth.py      # Authentication tests
-└── test_routes.py    # Tracking endpoints tests
+├── test_health.py    # Health endpoint tests (3)
+├── test_auth.py      # Authentication tests (8)
+├── test_routes.py    # Tracking endpoints tests (12)
+├── test_queue.py     # Queue producer/consumer tests (10)
+└── test_integration.py # End-to-end integration tests (2)
 docs/
 ├── references.md     # Использованная документация
 ├── decisions.md      # Архитектурные решения
@@ -138,8 +143,47 @@ docker/
 - `test_auth.py`: token/HMAC валидация, invalid/expired/missing parameters
 - `test_routes.py`: GET/POST endpoints, validation, auth enforcement
 
+## Реализованные фичи (Этап 3)
+
+### Модель данных (`app/core/models.py`)
+- **InternalEvent**: внутренняя модель события для очереди
+  - `event_type`, `event_id`, `received_at`, `payload`, `attempt`, `source_meta`
+  - Методы сериализации: `to_stream_fields()`, `from_stream_fields()`
+
+### Producer (`app/queue/producer.py`)
+- **EventProducer**:
+  - `enqueue()` — добавление события в Redis Stream через `xadd`
+  - `check_duplicate()` — проверка дедупликации через Redis key `dedup:<event_id>`
+  - `mark_processed()` — установка dedup key с TTL (7 дней)
+  - `move_to_dlq()` — перенос события в DLQ stream с причиной и last_error
+
+### Consumer (`app/queue/consumer.py`)
+- **EventConsumer**:
+  - `ensure_consumer_group()` — создание Consumer Group (mkstream=True)
+  - `read_events()` — чтение через `xreadgroup` с блокировкой
+  - `ack_message()` — подтверждение обработки через `xack`
+  - `get_pending_messages()` — получение зависших сообщений через `xautoclaim`
+
+### Worker (`app/worker/run.py`)
+- Подключение к Redis с проверкой connectivity
+- Создание Consumer Group при старте
+- Processing loop: чтение → обработка → ack
+- Graceful shutdown через signal handlers (SIGTERM, SIGINT)
+- Пока заглушка отправки в AppsFlyer (sleep 0.1s)
+
+### Интеграция в API (`app/api/routes.py`)
+- Dependency injection для Redis и Producer
+- Проверка дубликатов перед постановкой в очередь
+- Возврат статуса "Duplicate event" при повторной отправке
+- Автоматическая постановка в `events:main` stream
+
+### Тесты (35 passed)
+- `test_queue.py`: 10 тестов producer/consumer
+- `test_integration.py`: 2 integration теста (producer→consumer, dedup flow)
+- Все существующие тесты обновлены для моков Redis/Producer
+
 ## Следующие шаги
 
-1. Реализовать Redis Streams producer — постановка событий в очередь
-2. Реализовать Redis Streams consumer — чтение событий worker'ом
-3. Добавить дедупликацию через Redis keys
+1. Получить AppsFlyer API спецификацию через Context7
+2. Реализовать AppsFlyer client с httpx
+3. Реализовать mapper: InternalEvent → AppsFlyer request

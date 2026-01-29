@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import time
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -13,7 +14,22 @@ from app.main import app
 @pytest.fixture
 def client_with_token() -> TestClient:
     """Create a test client with token auth configured."""
-    return TestClient(app)
+    client = TestClient(app)
+    # Mock Redis in app.state
+    client.app.state.redis = AsyncMock()
+    return client
+
+
+@pytest.fixture(autouse=True)
+def mock_producer() -> None:
+    """Mock EventProducer for all auth tests."""
+    with patch("app.api.routes.get_producer") as mock:
+        producer = AsyncMock()
+        producer.check_duplicate.return_value = False
+        producer.enqueue.return_value = "msg-id-123"
+        producer.mark_processed.return_value = None
+        mock.return_value = producer
+        yield producer
 
 
 def test_token_auth_missing_token(client_with_token: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

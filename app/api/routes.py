@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Annotated
 
+import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, Request, status
 
 from app.api.auth import get_current_auth
@@ -13,12 +14,28 @@ from app.api.schemas import (
     RegistrationRequest,
     TrackingResponse,
 )
+from app.core.config import Settings, get_settings
 from app.core.exceptions import ValidationError
 from app.core.logging import get_logger
+from app.core.models import InternalEvent
+from app.queue.producer import EventProducer, get_producer
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/v1/track", tags=["Tracking"])
+
+
+async def _get_redis(request: Request) -> aioredis.Redis:
+    """Get Redis client from app state."""
+    return request.app.state.redis
+
+
+async def _get_producer(
+    redis: Annotated[aioredis.Redis, Depends(_get_redis)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> EventProducer:
+    """Get event producer instance."""
+    return get_producer(redis, settings)
 
 
 @router.get(
@@ -36,6 +53,7 @@ router = APIRouter(prefix="/v1/track", tags=["Tracking"])
 async def track_registration_get(
     request: Request,
     auth: Annotated[dict, Depends(get_current_auth)],
+    producer: Annotated[EventProducer, Depends(_get_producer)],
     appsflyer_id: str | None = None,
     customer_user_id: str | None = None,
     device_id: str | None = None,
@@ -54,7 +72,7 @@ async def track_registration_get(
         event_id=event_id,
     )
 
-    return await _process_registration(request, event_data, auth)
+    return await _process_registration(request, event_data, auth, producer)
 
 
 @router.post(
@@ -73,9 +91,10 @@ async def track_registration_post(
     request: Request,
     event_data: RegistrationRequest,
     auth: Annotated[dict, Depends(get_current_auth)],
+    producer: Annotated[EventProducer, Depends(_get_producer)],
 ) -> TrackingResponse:
     """Track registration event via POST request."""
-    return await _process_registration(request, event_data, auth)
+    return await _process_registration(request, event_data, auth, producer)
 
 
 @router.get(
@@ -93,6 +112,7 @@ async def track_registration_post(
 async def track_purchase_get(
     request: Request,
     auth: Annotated[dict, Depends(get_current_auth)],
+    producer: Annotated[EventProducer, Depends(_get_producer)],
     revenue: float | None = None,
     currency: str | None = None,
     appsflyer_id: str | None = None,
@@ -126,7 +146,7 @@ async def track_purchase_get(
         event_id=event_id,
     )
 
-    return await _process_purchase(request, event_data, auth)
+    return await _process_purchase(request, event_data, auth, producer)
 
 
 @router.post(
@@ -145,22 +165,69 @@ async def track_purchase_post(
     request: Request,
     event_data: PurchaseRequest,
     auth: Annotated[dict, Depends(get_current_auth)],
+    producer: Annotated[EventProducer, Depends(_get_producer)],
 ) -> TrackingResponse:
     """Track purchase event via POST request."""
-    return await _process_purchase(request, event_data, auth)
+    return await _process_purchase(request, event_data, auth, producer)
+
+
+async def _get_redis(request: Request) -> aioredis.Redis:
+    """Get Redis client from app state."""
+    return request.app.state.redis
+
+
+async def _get_producer(
+    redis: Annotated[aioredis.Redis, Depends(_get_redis)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> EventProducer:
+    """Get event producer instance."""
+    return get_producer(redis, settings)
 
 
 async def _process_registration(
     request: Request,  # noqa: ARG001
     event_data: RegistrationRequest,
     auth: dict,
+    producer: Annotated[EventProducer, Depends(_get_producer)],
 ) -> TrackingResponse:
     """Process registration event (common logic for GET/POST)."""
     # Generate event_id if not provided
     final_event_id = event_data.event_id or f"reg_{uuid.uuid4().hex[:16]}"
     queued_at = datetime.now(timezone.utc)
 
-    # Log event reception (with masked sensitive data)
+    # Check for duplicates
+    is_duplicate = await producer.check_duplicate(final_event_id)
+    if is_duplicate:
+        logger.info(
+            "duplicate_event_skipped",
+            event_id=final_event_id,
+            event_type="registration",
+        )
+        return TrackingResponse(
+            status="accepted",
+            event_id=final_event_id,
+            queued_at=queued_at,
+            message="Duplicate event (already processed)",
+        )
+
+    # Build internal event
+    internal_event = InternalEvent(
+        event_type="registration",
+        event_id=final_event_id,
+        received_at=queued_at,
+        payload=event_data.model_dump(exclude_none=True),
+        attempt=0,
+        source_meta={
+            "auth_method": auth["method"],
+        },
+    )
+
+    # Enqueue to Redis Streams
+    await producer.enqueue(internal_event)
+
+    # Mark as processed for deduplication
+    await producer.mark_processed(final_event_id)
+
     logger.info(
         "registration_received",
         event_id=final_event_id,
@@ -169,9 +236,6 @@ async def _process_registration(
         has_appsflyer_id=event_data.appsflyer_id is not None,
         has_customer_user_id=event_data.customer_user_id is not None,
     )
-
-    # TODO: Next stage - enqueue to Redis Streams
-    # For now, just return success response
 
     return TrackingResponse(
         status="accepted",
@@ -185,13 +249,46 @@ async def _process_purchase(
     request: Request,  # noqa: ARG001
     event_data: PurchaseRequest,
     auth: dict,
+    producer: Annotated[EventProducer, Depends(_get_producer)],
 ) -> TrackingResponse:
     """Process purchase event (common logic for GET/POST)."""
     # Generate event_id if not provided
     final_event_id = event_data.event_id or f"purchase_{uuid.uuid4().hex[:16]}"
     queued_at = datetime.now(timezone.utc)
 
-    # Log event reception (with masked sensitive data)
+    # Check for duplicates
+    is_duplicate = await producer.check_duplicate(final_event_id)
+    if is_duplicate:
+        logger.info(
+            "duplicate_event_skipped",
+            event_id=final_event_id,
+            event_type="purchase",
+        )
+        return TrackingResponse(
+            status="accepted",
+            event_id=final_event_id,
+            queued_at=queued_at,
+            message="Duplicate event (already processed)",
+        )
+
+    # Build internal event
+    internal_event = InternalEvent(
+        event_type="purchase",
+        event_id=final_event_id,
+        received_at=queued_at,
+        payload=event_data.model_dump(exclude_none=True),
+        attempt=0,
+        source_meta={
+            "auth_method": auth["method"],
+        },
+    )
+
+    # Enqueue to Redis Streams
+    await producer.enqueue(internal_event)
+
+    # Mark as processed for deduplication
+    await producer.mark_processed(final_event_id)
+
     logger.info(
         "purchase_received",
         event_id=final_event_id,
@@ -202,9 +299,6 @@ async def _process_purchase(
         has_appsflyer_id=event_data.appsflyer_id is not None,
         has_customer_user_id=event_data.customer_user_id is not None,
     )
-
-    # TODO: Next stage - enqueue to Redis Streams
-    # For now, just return success response
 
     return TrackingResponse(
         status="accepted",

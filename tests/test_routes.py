@@ -1,5 +1,7 @@
 """Tests for tracking API routes."""
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -17,6 +19,23 @@ def setup_auth(monkeypatch: pytest.MonkeyPatch) -> None:
     """Set up token auth for all tests."""
     monkeypatch.setenv("AUTH_MODE", "token")
     monkeypatch.setenv("API_TOKENS", "test-token")
+
+
+@pytest.fixture(autouse=True)
+def mock_redis_and_producer(client: TestClient) -> None:
+    """Mock Redis and EventProducer for all tests."""
+    # Mock Redis in app.state
+    mock_redis = AsyncMock()
+    client.app.state.redis = mock_redis
+
+    # Mock EventProducer
+    with patch("app.api.routes.get_producer") as mock:
+        producer = AsyncMock()
+        producer.check_duplicate.return_value = False
+        producer.enqueue.return_value = "msg-id-123"
+        producer.mark_processed.return_value = None
+        mock.return_value = producer
+        yield producer
 
 
 def test_registration_get_minimal(client: TestClient) -> None:
