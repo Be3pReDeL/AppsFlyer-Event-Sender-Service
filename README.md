@@ -24,34 +24,45 @@ Keitaro → API (FastAPI) → Redis Streams → Worker → AppsFlyer API
 
 ## Быстрый старт
 
-### 1. Настройка окружения
+### Локальная разработка
 
 ```bash
+# 1. Настройка окружения
 cp .env.example .env
 # Отредактируйте .env:
 # - API_TOKENS: ваши токены для аутентификации
 # - APPSFLYER_DEV_KEY: ключ разработчика AppsFlyer
 # - APPSFLYER_DEFAULT_APP_ID: ID приложения (id123... для iOS, com.app.name для Android)
-```
 
-### 2. Запуск через Docker Compose
-
-```bash
+# 2. Запуск через Docker Compose
 docker compose up -d
+
+# 3. Проверка работоспособности
+curl http://localhost:8000/health/ready
 ```
 
-### 3. Проверка работоспособности
+### Production деплой на DigitalOcean
 
 ```bash
-# Liveness probe
-curl http://localhost:8000/health/live
+# 1. Настройка сервера (запустить на сервере)
+bash scripts/deploy-setup.sh
 
-# Readiness probe (проверяет Redis)
-curl http://localhost:8000/health/ready
+# 2. Клонировать репозиторий
+git clone git@github.com:USER/REPO.git /opt/apps/AppsFlyer-Event-Sender-Service
+cd /opt/apps/AppsFlyer-Event-Sender-Service
 
-# Prometheus metrics
-curl http://localhost:8000/metrics
+# 3. Настроить production конфигурацию
+cp deploy/env-examples/production.env .env
+nano .env  # Заполнить реальные credentials
+
+# 4. Проверка готовности
+bash scripts/preflight-check.sh
+
+# 5. Автоматический деплой
+bash scripts/auto-deploy.sh production
 ```
+
+**Подробнее:** [Deployment Documentation](docs/deployment_digitalocean.md)
 
 ## API Endpoints
 
@@ -296,6 +307,13 @@ docker/                  # Dockerfiles
 - [Архитектурные решения](docs/decisions.md)
 - [Использованные источники](docs/references.md)
 - [AppsFlyer API](docs/appsflyer_api.md)
+
+### Деплой
+
+- [Полное руководство по деплою на DigitalOcean](docs/deployment_digitalocean.md)
+- [Быстрый старт деплоя](docs/deployment_quickstart.md)
+- [Шаблон Nginx конфигурации](deploy/nginx.conf.template)
+- [systemd unit файл](deploy/appsflyer-service.service)
 
 ## Keitaro Integration
 
