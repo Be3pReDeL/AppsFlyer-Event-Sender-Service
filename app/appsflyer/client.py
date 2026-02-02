@@ -1,6 +1,8 @@
 """AppsFlyer API client using httpx."""
 
+import json
 import time
+from typing import Any
 
 import httpx
 
@@ -63,10 +65,11 @@ class AppsFlyerClient:
         headers = {
             "authentication": self.dev_key,
             "Content-Type": "application/json",
+            "Accept": "application/json",
         }
 
         # Build request body
-        body = request.model_dump(exclude_none=True)
+        body = self._build_request_body(request)
 
         logger.info(
             "appsflyer_request_start",
@@ -231,6 +234,39 @@ class AppsFlyerClient:
             status_code=status_code,
             retryable=False,
         )
+
+    def _build_request_body(self, request: AppsFlyerRequest) -> dict[str, Any]:
+        """Build AppsFlyer API request body with expected field names."""
+        body = request.model_dump(exclude_none=True)
+        event_name = body.pop("event_name")
+        event_value = body.pop("event_value", None)
+
+        body["eventName"] = event_name
+        body["eventValue"] = self._serialize_event_value(event_value)
+
+        return body
+
+    @staticmethod
+    def _serialize_event_value(event_value: Any) -> str:
+        """Serialize event_value to AppsFlyer-required JSON string."""
+        if event_value is None:
+            return ""
+
+        if isinstance(event_value, dict) and not event_value:
+            return ""
+
+        if isinstance(event_value, str):
+            return event_value
+
+        try:
+            return json.dumps(event_value, separators=(",", ":"), ensure_ascii=False)
+        except (TypeError, ValueError) as exc:
+            raise AppsFlyerError(
+                "Invalid event_value: JSON serialization failed",
+                status_code=None,
+                retryable=False,
+                details={"error": str(exc)},
+            ) from exc
 
     @staticmethod
     def _extract_error_detail(response: httpx.Response) -> str:
