@@ -59,15 +59,18 @@ class EventConsumer:
         Returns:
             List of (message_id, InternalEvent) tuples
         """
-        try:
-            # Read from consumer group
-            response = await self.redis.xreadgroup(
+        async def _read_from_group() -> Any:
+            return await self.redis.xreadgroup(
                 groupname=self.settings.worker_consumer_group,
                 consumername=self.consumer_name,
                 streams={self.settings.stream_main: ">"},
                 count=count,
                 block=block_ms,
             )
+
+        try:
+            # Read from consumer group
+            response = await _read_from_group()
 
             events: list[tuple[str, InternalEvent]] = []
 
@@ -99,6 +102,51 @@ class EventConsumer:
             return events
 
         except Exception as e:
+            if "NOGROUP" in str(e):
+                logger.warning(
+                    "consumer_group_missing",
+                    stream=self.settings.stream_main,
+                    group=self.settings.worker_consumer_group,
+                    error=str(e),
+                )
+                try:
+                    await self.ensure_consumer_group()
+                except Exception as create_err:
+                    logger.error("consumer_group_recreate_failed", error=str(create_err))
+                    return []
+
+                try:
+                    response = await _read_from_group()
+                except Exception as retry_err:
+                    logger.error("read_events_failed", error=str(retry_err))
+                    return []
+
+                events: list[tuple[str, InternalEvent]] = []
+                if not response:
+                    return events
+
+                for _stream_name, messages in response:
+                    for message_id, fields in messages:
+                        try:
+                            event = InternalEvent.from_stream_fields(fields)
+                            events.append((str(message_id), event))
+                            logger.debug(
+                                "event_read",
+                                message_id=message_id,
+                                event_id=event.event_id,
+                                event_type=event.event_type,
+                            )
+                        except Exception as parse_err:
+                            logger.error(
+                                "event_parse_failed",
+                                message_id=message_id,
+                                error=str(parse_err),
+                                fields=fields,
+                            )
+                            continue
+
+                return events
+
             logger.error("read_events_failed", error=str(e))
             # Return empty list on error to allow retry
             return []
