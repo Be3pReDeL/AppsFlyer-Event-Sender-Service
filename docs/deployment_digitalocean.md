@@ -648,7 +648,8 @@ server {
 
     # API endpoints
     location /v1 {
-        proxy_pass http://appsflyer_api;
+        # Важно: сохраняем /v1 префикс (не используйте trailing slash)
+        proxy_pass http://appsflyer_api$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

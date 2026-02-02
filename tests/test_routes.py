@@ -139,6 +139,54 @@ def test_purchase_get_missing_currency(client: TestClient) -> None:
     assert "required" in response.json()["error"].lower()
 
 
+def test_registration_proxy_post_allows_hmac_mode(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Proxy endpoint should accept token auth even when AUTH_MODE=hmac."""
+    monkeypatch.setenv("AUTH_MODE", "hmac")
+    monkeypatch.setenv("HMAC_KEYS_JSON", "{\"keitaro\":\"secret\"}")
+
+    response = client.post(
+        "/v1/track/registration/proxy",
+        params={
+            "token": "test-token",
+            "appsflyer_id": "device-123",
+            "platform": "ios",
+        },
+    )
+
+    assert response.status_code == 202
+    data = response.json()
+    assert data["status"] == "accepted"
+    assert "event_id" in data
+
+
+def test_purchase_proxy_post_allows_hmac_mode(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Proxy purchase endpoint should accept token auth in HMAC mode."""
+    monkeypatch.setenv("AUTH_MODE", "hmac")
+    monkeypatch.setenv("HMAC_KEYS_JSON", "{\"keitaro\":\"secret\"}")
+
+    response = client.post(
+        "/v1/track/purchase/proxy",
+        params={
+            "token": "test-token",
+            "appsflyer_id": "device-123",
+            "revenue": 19.99,
+            "currency": "USD",
+            "platform": "android",
+        },
+    )
+
+    assert response.status_code == 202
+    data = response.json()
+    assert data["status"] == "accepted"
+    assert data["event_id"].startswith("purchase_")
+
+
 def test_purchase_post_query_params(client: TestClient) -> None:
     """Test purchase POST endpoint with query parameters (Keitaro-compatible)."""
     response = client.post(

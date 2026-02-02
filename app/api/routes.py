@@ -7,7 +7,7 @@ from typing import Annotated
 import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, Request, status
 
-from app.api.auth import get_current_auth
+from app.api.auth import get_current_auth, get_proxy_auth
 from app.api.rate_limit import check_rate_limit_dependency
 from app.api.schemas import (
     ErrorResponse,
@@ -121,6 +121,46 @@ async def track_registration_post(
 ) -> TrackingResponse:
     """Track registration event via POST request (query parameters)."""
     # Build request model from query parameters (same as GET)
+    event_data = RegistrationRequest(
+        app_id=app_id,
+        appsflyer_id=appsflyer_id,
+        customer_user_id=customer_user_id,
+        device_id=device_id,
+        platform=platform,
+        registration_method=registration_method,
+        event_id=event_id,
+    )
+
+    return await _process_registration(request, event_data, auth, producer)
+
+
+@router.post(
+    "/registration/proxy",
+    response_model=TrackingResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Track registration event via proxy (POST)",
+    description="Proxy endpoint for platforms that cannot compute HMAC. Requires token auth.",
+    responses={
+        202: {"description": "Event accepted and queued for processing"},
+        400: {"model": ErrorResponse, "description": "Validation error"},
+        401: {"model": ErrorResponse, "description": "Authentication failed"},
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
+    },
+)
+async def track_registration_proxy_post(
+    request: Request,
+    auth: Annotated[dict, Depends(get_proxy_auth)],
+    rate_limit: Annotated[None, Depends(check_rate_limit_dependency)],
+    producer: Annotated[EventProducer, Depends(_get_producer)],
+    app_id: str | None = None,
+    appsflyer_id: str | None = None,
+    customer_user_id: str | None = None,
+    device_id: str | None = None,
+    platform: str | None = None,
+    registration_method: str | None = None,
+    event_id: str | None = None,
+) -> TrackingResponse:
+    """Track registration event via proxy POST (query parameters)."""
     event_data = RegistrationRequest(
         app_id=app_id,
         appsflyer_id=appsflyer_id,
@@ -255,6 +295,66 @@ async def track_purchase_post(
         )
     except PydanticValidationError as e:
         # Convert Pydantic validation error to HTTP 422
+        raise HTTPException(status_code=422, detail=e.errors()) from e
+
+    return await _process_purchase(request, event_data, auth, producer)
+
+
+@router.post(
+    "/purchase/proxy",
+    response_model=TrackingResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Track purchase event via proxy (POST)",
+    description="Proxy endpoint for platforms that cannot compute HMAC. Requires token auth.",
+    responses={
+        202: {"description": "Event accepted and queued for processing"},
+        400: {"model": ErrorResponse, "description": "Validation error"},
+        401: {"model": ErrorResponse, "description": "Authentication failed"},
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
+    },
+)
+async def track_purchase_proxy_post(
+    request: Request,
+    auth: Annotated[dict, Depends(get_proxy_auth)],
+    rate_limit: Annotated[None, Depends(check_rate_limit_dependency)],
+    producer: Annotated[EventProducer, Depends(_get_producer)],
+    app_id: str | None = None,
+    revenue: float | None = None,
+    currency: str | None = None,
+    appsflyer_id: str | None = None,
+    customer_user_id: str | None = None,
+    device_id: str | None = None,
+    platform: str | None = None,
+    product_id: str | None = None,
+    order_id: str | None = None,
+    quantity: int | None = None,
+    event_id: str | None = None,
+) -> TrackingResponse:
+    """Track purchase event via proxy POST (query parameters)."""
+    from fastapi import HTTPException
+    from pydantic import ValidationError as PydanticValidationError
+
+    if revenue is None or currency is None:
+        raise ValidationError(
+            "Missing required fields",
+            details={"required": ["revenue", "currency"]},
+        )
+
+    try:
+        event_data = PurchaseRequest(
+            app_id=app_id,
+            revenue=revenue,
+            currency=currency,
+            appsflyer_id=appsflyer_id,
+            customer_user_id=customer_user_id,
+            device_id=device_id,
+            platform=platform,
+            product_id=product_id,
+            order_id=order_id,
+            quantity=quantity,
+            event_id=event_id,
+        )
+    except PydanticValidationError as e:
         raise HTTPException(status_code=422, detail=e.errors()) from e
 
     return await _process_purchase(request, event_data, auth, producer)

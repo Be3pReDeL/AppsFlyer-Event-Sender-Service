@@ -170,3 +170,12 @@ async def get_current_auth(
     else:
         logger.error("auth_config_error", reason="invalid_auth_mode", mode=settings.auth_mode)
         raise AuthenticationError("Invalid authentication mode configured")
+
+
+async def get_proxy_auth(
+    token: Annotated[str | None, Query()] = None,
+    settings: Settings = Depends(get_settings),
+) -> dict[str, str]:
+    """Token auth for proxy endpoints (works regardless of auth_mode)."""
+    await verify_token_auth(token, settings)
+    return {"method": "proxy", "identifier": "***"}

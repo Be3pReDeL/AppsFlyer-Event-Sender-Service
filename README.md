@@ -80,6 +80,8 @@ bash scripts/auto-deploy.sh production
 |----------|-------|----------|
 | `/v1/track/registration` | GET/POST | Событие регистрации |
 | `/v1/track/purchase` | GET/POST | Событие покупки |
+| `/v1/track/registration/proxy` | POST | Прокси для регистрации (token auth, без HMAC) |
+| `/v1/track/purchase/proxy` | POST | Прокси для покупки (token auth, без HMAC) |
 
 > **Note**: POST endpoints используют query-параметры (совместимость с Keitaro)
 
@@ -105,6 +107,15 @@ customer_user_id=user_123&\
 platform=ios&\
 registration_method=email&\
 event_id=reg_custom_001"
+```
+
+### Регистрация (Keitaro без HMAC через proxy)
+
+```bash
+curl -X POST "http://localhost:8000/v1/track/registration/proxy?\
+token=YOUR_TOKEN&\
+appsflyer_id=1658954220-1234567890&\
+platform=ios"
 ```
 
 ### Покупка (минимальный запрос)
@@ -133,6 +144,17 @@ order_id=order_abc456&\
 quantity=1&\
 platform=android&\
 event_id=purchase_custom_002"
+```
+
+### Покупка (Keitaro без HMAC через proxy)
+
+```bash
+curl -X POST "http://localhost:8000/v1/track/purchase/proxy?\
+token=YOUR_TOKEN&\
+appsflyer_id=1658954220-9876543210&\
+revenue=19.99&\
+currency=USD&\
+platform=android"
 ```
 
 ### Ответ API

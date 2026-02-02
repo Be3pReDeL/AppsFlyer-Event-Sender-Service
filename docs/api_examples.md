@@ -57,6 +57,17 @@ event_id=reg_abc123"
 
 > **Note**: POST endpoint принимает данные из query-параметров (не из body), так как Keitaro не поддерживает body в POST запросах.
 
+### POST запрос через proxy (без HMAC, для Keitaro)
+
+```bash
+curl -X POST "http://localhost:8000/v1/track/registration/proxy?\
+token=YOUR_TOKEN&\
+appsflyer_id=1658954220-1234567890&\
+platform=ios"
+```
+
+> **Note**: Proxy endpoint использует token-авторизацию и работает даже при `AUTH_MODE=hmac`.
+
 ## Покупка (Purchase)
 
 ### GET запрос (минимальный)
@@ -115,6 +126,19 @@ event_id=purchase_def456"
 ```
 
 > **Note**: POST endpoint принимает данные из query-параметров (не из body), так как Keitaro не поддерживает body в POST запросах.
+
+### POST запрос через proxy (без HMAC, для Keitaro)
+
+```bash
+curl -X POST "http://localhost:8000/v1/track/purchase/proxy?\
+token=YOUR_TOKEN&\
+appsflyer_id=1658954220-9876543210&\
+revenue=49.99&\
+currency=USD&\
+platform=android"
+```
+
+> **Note**: Proxy endpoint использует token-авторизацию и работает даже при `AUTH_MODE=hmac`.
 
 ## Использование HMAC аутентификации
 
