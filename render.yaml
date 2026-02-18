@@ -1,0 +1,103 @@
+services:
+  - type: redis
+    name: appsflyer-redis
+    plan: free
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
+
+  - type: web
+    name: appsflyer-api
+    runtime: python
+    plan: free
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: gunicorn app.main:app --bind 0.0.0.0:$PORT --worker-class uvicorn.workers.UvicornWorker --workers 2 --timeout 30 --keep-alive 5 --access-logfile - --error-logfile -
+    healthCheckPath: /health/live
+    envVars:
+      - key: APP_ENV
+        value: prod
+      - key: DEBUG
+        value: "false"
+      - key: AUTH_MODE
+        value: token
+      - key: API_TOKENS
+        sync: false
+      - key: HMAC_KEYS_JSON
+        value: "{}"
+      - key: AUTH_TS_SKEW_SECONDS
+        value: "300"
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: appsflyer-redis
+          property: connectionString
+      - key: STREAM_MAIN
+        value: events:main
+      - key: STREAM_DLQ
+        value: events:dlq
+      - key: APPSFLYER_BASE_URL
+        value: https://api3.appsflyer.com
+      - key: APPSFLYER_TIMEOUT_SECONDS
+        value: "5"
+      - key: APPSFLYER_DEV_KEY
+        sync: false
+      - key: APPSFLYER_DEFAULT_APP_ID
+        sync: false
+      - key: RATE_LIMIT_ENABLED
+        value: "true"
+      - key: RATE_LIMIT_RPS
+        value: "100"
+      - key: RATE_LIMIT_BURST
+        value: "200"
+      - key: DEDUP_TTL_SECONDS
+        value: "604800"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: LOG_FORMAT
+        value: json
+
+  - type: worker
+    name: appsflyer-worker
+    runtime: python
+    plan: free
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: python -m app.worker.run
+    envVars:
+      - key: APP_ENV
+        value: prod
+      - key: DEBUG
+        value: "false"
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: appsflyer-redis
+          property: connectionString
+      - key: STREAM_MAIN
+        value: events:main
+      - key: STREAM_DLQ
+        value: events:dlq
+      - key: WORKER_CONSUMER_GROUP
+        value: af_sender
+      - key: WORKER_CONCURRENCY
+        value: "10"
+      - key: MAX_ATTEMPTS
+        value: "8"
+      - key: BACKOFF_BASE_SECONDS
+        value: "1"
+      - key: BACKOFF_MAX_SECONDS
+        value: "60"
+      - key: PENDING_CLAIM_MS
+        value: "60000"
+      - key: APPSFLYER_BASE_URL
+        value: https://api3.appsflyer.com
+      - key: APPSFLYER_TIMEOUT_SECONDS
+        value: "5"
+      - key: APPSFLYER_DEV_KEY
+        sync: false
+      - key: APPSFLYER_DEFAULT_APP_ID
+        sync: false
+      - key: DEDUP_TTL_SECONDS
+        value: "604800"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: LOG_FORMAT
+        value: json

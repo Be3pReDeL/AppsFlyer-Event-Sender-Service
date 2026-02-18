@@ -1,0 +1,60 @@
+# AppsFlyer Event Sender Service - systemd unit file
+#
+# Установка:
+#   sudo cp deploy/appsflyer-service.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable appsflyer-service
+#   sudo systemctl start appsflyer-service
+#
+# Управление:
+#   sudo systemctl status appsflyer-service
+#   sudo systemctl start appsflyer-service
+#   sudo systemctl stop appsflyer-service
+#   sudo systemctl restart appsflyer-service
+#   sudo journalctl -u appsflyer-service -f
+
+[Unit]
+Description=AppsFlyer Event Sender Service
+Documentation=https://github.com/YOUR_USERNAME/AppsFlyer-Event-Sender-Service
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=deploy
+Group=deploy
+WorkingDirectory=/opt/apps/AppsFlyer-Event-Sender-Service
+
+# Environment file (опционально, если хотите переопределить переменные)
+# EnvironmentFile=/opt/apps/AppsFlyer-Event-Sender-Service/.env
+
+# Start command
+ExecStart=/usr/bin/docker compose up -d --remove-orphans
+
+# Stop command
+ExecStop=/usr/bin/docker compose down
+
+# Reload command (graceful restart)
+ExecReload=/usr/bin/docker compose restart
+
+# Restart policy
+Restart=on-failure
+RestartSec=10s
+
+# Timeouts
+TimeoutStartSec=300
+TimeoutStopSec=60
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=appsflyer-service
+
+[Install]
+WantedBy=multi-user.target
