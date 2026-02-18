@@ -58,7 +58,7 @@ services:
   - type: worker
     name: appsflyer-worker
     runtime: python
-    plan: free
+    plan: starter
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: python -m app.worker.run
     envVars:

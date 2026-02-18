@@ -8,6 +8,11 @@
 - `appsflyer-worker` (`type: worker`) — фоновый обработчик очереди.
 - `appsflyer-redis` (`type: redis`) — внутреннее key-value хранилище для Streams/dedup/rate limit.
 
+Текущая конфигурация планов:
+- `appsflyer-api`: `free`
+- `appsflyer-redis`: `free`
+- `appsflyer-worker`: `starter` (на free worker недоступен в Render)
+
 ## Предварительные требования
 
 - Код запушен в GitHub репозиторий.
@@ -69,5 +74,5 @@ curl -X POST "https://<your-api>.onrender.com/v1/track/registration?token=<TOKEN
 ## Важные замечания
 
 - `REDIS_URL` для API/worker подставляется автоматически через `fromService`.
-- В `render.yaml` по умолчанию установлен `plan: free` для всех сервисов; при production-нагрузке рекомендуется перейти на платные планы.
+- В Render free-инстансы не поддерживают `worker`, поэтому для фонового обработчика используется `starter`.
 - Если изменяете контракт переменных окружения, обновляйте одновременно `.env.example` и `render.yaml`.
