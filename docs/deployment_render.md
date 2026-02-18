@@ -12,6 +12,7 @@
 - `appsflyer-api`: `free`
 - `appsflyer-redis`: `free`
 - `appsflyer-worker`: `starter` (на free worker недоступен в Render)
+- Python version: `3.11` (зафиксирован через `.python-version` и `PYTHON_VERSION` в `render.yaml`)
 
 ## Предварительные требования
 
