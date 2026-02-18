@@ -64,6 +64,16 @@ bash scripts/auto-deploy.sh production
 
 **Подробнее:** [Deployment Documentation](docs/deployment_digitalocean.md)
 
+### Production деплой на Render (из GitHub)
+
+1. Убедитесь, что в репозитории есть `render.yaml`.
+2. Запушьте изменения в GitHub.
+3. Откройте Blueprint:
+   `https://dashboard.render.com/blueprint/new?repo=<HTTPS_URL_ВАШЕГО_РЕПОЗИТОРИЯ>`
+4. Заполните секреты (`API_TOKENS`, `APPSFLYER_DEV_KEY`, `APPSFLYER_DEFAULT_APP_ID`) и нажмите `Apply`.
+
+**Подробнее:** [Deployment Guide для Render](docs/deployment_render.md)
+
 ## API Endpoints
 
 ### Health Checks
@@ -333,6 +343,7 @@ docker/                  # Dockerfiles
 ### Деплой
 
 - [Полное руководство по деплою на DigitalOcean](docs/deployment_digitalocean.md)
+- [Полное руководство по деплою на Render из GitHub](docs/deployment_render.md)
 - [Быстрый старт деплоя](docs/deployment_quickstart.md)
 - [Шаблон Nginx конфигурации](deploy/nginx.conf.template)
 - [systemd unit файл](deploy/appsflyer-service.service)
