@@ -213,6 +213,28 @@ async def test_successful_processing_marks_processed_and_acks(
 
 
 @pytest.mark.asyncio
+async def test_request_dev_key_forwarded_to_appsflyer_client(
+    worker, sample_event, mock_appsflyer_client
+):
+    """Test that per-request dev_key from payload is forwarded to AppsFlyer client."""
+    sample_event.payload["dev_key"] = "request-dev-key"
+
+    with patch("app.appsflyer.mapper.AppsFlyerMapper.map_event") as mock_map:
+        af_request = MagicMock()
+        mock_map.return_value = (af_request, "id123456789")
+        mock_appsflyer_client.send_event.return_value = MagicMock(status=200)
+
+        await worker._process_event("msg-123", sample_event)
+
+        mock_appsflyer_client.send_event.assert_called_once_with(
+            af_request,
+            sample_event.event_id,
+            app_id="id123456789",
+            dev_key="request-dev-key",
+        )
+
+
+@pytest.mark.asyncio
 async def test_reclaim_pending_messages_processes_events(worker, mock_consumer):
     """Test that pending messages are reclaimed and processed."""
     pending_fields = {

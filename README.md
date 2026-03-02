@@ -31,7 +31,7 @@ Keitaro → API (FastAPI) → Redis Streams → Worker → AppsFlyer API
 cp .env.example .env
 # Отредактируйте .env:
 # - API_TOKENS: ваши токены для аутентификации
-# - APPSFLYER_DEV_KEY: ключ разработчика AppsFlyer
+# - APPSFLYER_DEV_KEY: дефолтный ключ разработчика AppsFlyer (fallback, можно переопределить query-параметром dev_key)
 # - APPSFLYER_DEFAULT_APP_ID: ID приложения (id123... для iOS, com.app.name для Android)
 
 # 2. Запуск через Docker Compose
@@ -70,7 +70,7 @@ bash scripts/auto-deploy.sh production
 2. Запушьте изменения в GitHub.
 3. Откройте Blueprint:
    `https://dashboard.render.com/blueprint/new?repo=<HTTPS_URL_ВАШЕГО_РЕПОЗИТОРИЯ>`
-4. Заполните секреты (`API_TOKENS`, `APPSFLYER_DEV_KEY`, `APPSFLYER_DEFAULT_APP_ID`) и нажмите `Apply`.
+4. Заполните секреты (`API_TOKENS`, `APPSFLYER_DEFAULT_APP_ID`, опционально `APPSFLYER_DEV_KEY`) и нажмите `Apply`.
 
 **Подробнее:** [Deployment Guide для Render](docs/deployment_render.md)
 
@@ -93,7 +93,8 @@ bash scripts/auto-deploy.sh production
 | `/v1/track/registration/proxy` | POST | Прокси для регистрации (token auth, без HMAC) |
 | `/v1/track/purchase/proxy` | POST | Прокси для покупки (token auth, без HMAC) |
 
-> **Note**: POST endpoints используют query-параметры (совместимость с Keitaro)
+> **Note**: POST endpoints используют query-параметры (совместимость с Keitaro).
+> `dev_key` можно передавать в query для конкретного запроса; если его нет, используется `APPSFLYER_DEV_KEY` из env.
 
 ## Примеры использования
 
@@ -112,6 +113,7 @@ platform=ios"
 curl -X POST "http://localhost:8000/v1/track/registration?\
 token=YOUR_TOKEN&\
 app_id=id123456789&\
+dev_key=YOUR_DEV_KEY_OVERRIDE&\
 appsflyer_id=1658954220-1234567890&\
 customer_user_id=user_123&\
 platform=ios&\
@@ -145,6 +147,7 @@ platform=android"
 curl -X POST "http://localhost:8000/v1/track/purchase?\
 token=YOUR_TOKEN&\
 app_id=com.example.myapp&\
+dev_key=YOUR_DEV_KEY_OVERRIDE&\
 appsflyer_id=1658954220-9876543210&\
 customer_user_id=user_67890&\
 revenue=49.99&\
@@ -221,7 +224,7 @@ platform=android"
 | Переменная | По умолчанию | Описание |
 |------------|--------------|----------|
 | `APPSFLYER_BASE_URL` | https://api3.appsflyer.com | Base URL API |
-| `APPSFLYER_DEV_KEY` | - | Dev key (обязательно) |
+| `APPSFLYER_DEV_KEY` | - | Dev key по умолчанию (fallback, можно переопределить `dev_key` в query) |
 | `APPSFLYER_DEFAULT_APP_ID` | - | App ID по умолчанию |
 | `APPSFLYER_TIMEOUT_SECONDS` | 5 | Timeout запросов |
 

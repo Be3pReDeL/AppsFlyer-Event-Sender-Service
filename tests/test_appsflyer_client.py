@@ -93,6 +93,71 @@ async def test_send_event_payload_format(
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_send_event_uses_request_dev_key_override(
+    client: AppsFlyerClient,
+    sample_request: AppsFlyerRequest,
+) -> None:
+    """Test that request-level dev_key overrides APPSFLYER_DEV_KEY from settings."""
+    route = respx.post("https://api3.appsflyer.com/inappevent/com.test.app").mock(
+        return_value=httpx.Response(200, json={"status": "success", "message": "OK"})
+    )
+
+    await client.send_event(
+        sample_request,
+        "test_event_override_key",
+        dev_key="override-dev-key",
+    )
+
+    assert route.called
+    sent_request = route.calls[0].request
+    assert sent_request.headers.get("authentication") == "override-dev-key"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_send_event_blank_request_dev_key_falls_back_to_env(
+    client: AppsFlyerClient,
+    sample_request: AppsFlyerRequest,
+) -> None:
+    """Test that blank request dev_key uses configured env dev key."""
+    route = respx.post("https://api3.appsflyer.com/inappevent/com.test.app").mock(
+        return_value=httpx.Response(200, json={"status": "success", "message": "OK"})
+    )
+
+    await client.send_event(
+        sample_request,
+        "test_event_blank_override",
+        dev_key="   ",
+    )
+
+    assert route.called
+    sent_request = route.calls[0].request
+    assert sent_request.headers.get("authentication") == "test-dev-key"
+
+
+@pytest.mark.asyncio
+async def test_send_event_without_dev_key_in_request_and_env_raises_error(
+    sample_request: AppsFlyerRequest,
+) -> None:
+    """Test that missing dev key in both query and env fails fast."""
+    settings_without_dev_key = Settings(
+        appsflyer_base_url="https://api3.appsflyer.com",
+        appsflyer_dev_key="",
+        appsflyer_default_app_id="com.test.app",
+        appsflyer_timeout_seconds=5.0,
+    )
+    client_without_dev_key = AppsFlyerClient(settings_without_dev_key)
+
+    with pytest.raises(AppsFlyerError) as exc_info:
+        await client_without_dev_key.send_event(sample_request, "test_event_missing_key")
+
+    error = exc_info.value
+    assert error.retryable is False
+    assert "dev_key not configured" in error.message
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_send_event_empty_event_value_serializes_to_empty_string(
     client: AppsFlyerClient,
 ) -> None:

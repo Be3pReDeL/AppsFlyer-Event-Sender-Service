@@ -14,6 +14,10 @@ class TrackingRequestBase(BaseModel):
         None,
         description="AppsFlyer app ID (for iOS: id123456789, for Android: com.example.app). Uses default if not provided.",
     )
+    dev_key: str | None = Field(
+        None,
+        description="AppsFlyer dev key override for this request. If omitted, APPSFLYER_DEV_KEY from env is used.",
+    )
 
     # AppsFlyer identifiers
     appsflyer_id: str | None = Field(None, description="AppsFlyer device ID")

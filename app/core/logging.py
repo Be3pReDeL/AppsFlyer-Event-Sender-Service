@@ -16,7 +16,16 @@ def mask_sensitive_data(
     event_dict: dict[str, Any],
 ) -> dict[str, Any]:
     """Mask sensitive fields in log output."""
-    sensitive_keys = {"token", "sig", "signature", "api_key", "secret", "password", "authorization"}
+    sensitive_keys = {
+        "token",
+        "sig",
+        "signature",
+        "api_key",
+        "dev_key",
+        "secret",
+        "password",
+        "authorization",
+    }
 
     def mask_value(key: str, value: Any) -> Any:
         if isinstance(value, str) and any(s in key.lower() for s in sensitive_keys):

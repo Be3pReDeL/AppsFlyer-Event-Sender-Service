@@ -92,6 +92,26 @@ def test_registration_post_query_params(client: TestClient) -> None:
     assert "event_id" in data
 
 
+def test_registration_post_dev_key_is_stored_in_payload(
+    client: TestClient,
+    mock_redis_and_producer: AsyncMock,
+) -> None:
+    """Test that dev_key query parameter is propagated to worker payload."""
+    response = client.post(
+        "/v1/track/registration",
+        params={
+            "token": "test-token",
+            "appsflyer_id": "device-123",
+            "dev_key": "request-dev-key-123",
+        },
+    )
+
+    assert response.status_code == 202
+    assert mock_redis_and_producer.enqueue.called
+    enqueued_event = mock_redis_and_producer.enqueue.call_args.args[0]
+    assert enqueued_event.payload["dev_key"] == "request-dev-key-123"
+
+
 def test_purchase_get_minimal(client: TestClient) -> None:
     """Test purchase GET endpoint with required parameters."""
     response = client.get(

@@ -13,7 +13,7 @@
 Перед использованием установите в `.env`:
 ```bash
 API_TOKENS=ваш-секретный-токен-здесь
-APPSFLYER_DEV_KEY=ваш-appsflyer-dev-key
+APPSFLYER_DEV_KEY=ваш-appsflyer-dev-key  # default fallback, можно переопределять dev_key в query
 APPSFLYER_DEFAULT_APP_ID=id123456789  # для iOS: idXXX, для Android: com.app.name
 ```
 

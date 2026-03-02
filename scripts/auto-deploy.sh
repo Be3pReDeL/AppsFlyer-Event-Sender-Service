@@ -169,7 +169,7 @@ fi
 # Проверить обязательные переменные
 log_info "Validating required environment variables..."
 
-REQUIRED_VARS=("API_TOKENS" "APPSFLYER_DEV_KEY" "APPSFLYER_DEFAULT_APP_ID")
+REQUIRED_VARS=("API_TOKENS" "APPSFLYER_DEFAULT_APP_ID")
 MISSING_VARS=()
 
 for var in "${REQUIRED_VARS[@]}"; do
@@ -180,6 +180,10 @@ done
 
 if [ ${#MISSING_VARS[@]} -gt 0 ]; then
     log_error "Missing required variables in .env: ${MISSING_VARS[*]}"
+fi
+
+if ! grep -q "^APPSFLYER_DEV_KEY=.\+" .env; then
+    log_warn "APPSFLYER_DEV_KEY is empty in .env (events must provide dev_key query parameter)"
 fi
 
 log_info "All required variables present"
