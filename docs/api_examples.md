@@ -7,7 +7,7 @@
 Перед отправкой запросов убедитесь, что:
 - Сервис запущен (`docker compose up -d` или `uvicorn app.main:app`)
 - Установлена переменная `API_TOKENS` с валидным токеном
-- Установлена переменная `APPSFLYER_DEV_KEY` с вашим dev key
+- Установлена переменная `APPSFLYER_DEV_KEY` с вашим default dev key (опционально, если передаёте `dev_key` в каждом запросе)
 - Установлена переменная `APPSFLYER_DEFAULT_APP_ID` (или передавайте `app_id` в запросах)
 
 ## Регистрация (Registration)
@@ -48,6 +48,7 @@ event_id=reg_custom_id_001"
 curl -X POST "http://localhost:8000/v1/track/registration?\
 token=YOUR_TOKEN&\
 app_id=id123456789&\
+dev_key=YOUR_DEV_KEY_OVERRIDE&\
 appsflyer_id=1658954220-1234567890&\
 customer_user_id=user_12345&\
 platform=ios&\
@@ -114,6 +115,7 @@ event_id=purchase_custom_002"
 curl -X POST "http://localhost:8000/v1/track/purchase?\
 token=YOUR_TOKEN&\
 app_id=com.example.myapp&\
+dev_key=YOUR_DEV_KEY_OVERRIDE&\
 appsflyer_id=1658954220-9876543210&\
 customer_user_id=user_67890&\
 revenue=49.99&\

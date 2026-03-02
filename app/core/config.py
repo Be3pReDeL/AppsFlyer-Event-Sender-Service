@@ -48,7 +48,10 @@ class Settings(BaseSettings):
         description="AppsFlyer API base URL",
     )
     appsflyer_timeout_seconds: float = Field(default=5.0, description="AppsFlyer API timeout")
-    appsflyer_dev_key: str = Field(default="", description="AppsFlyer dev key for authentication")
+    appsflyer_dev_key: str = Field(
+        default="",
+        description="Default AppsFlyer dev key for authentication (can be overridden per request)",
+    )
     appsflyer_default_app_id: str = Field(
         default="",
         description="Default AppsFlyer app ID (can be overridden per request)",

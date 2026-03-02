@@ -20,7 +20,7 @@
 - В корне репозитория есть `render.yaml`.
 - Подготовлены секреты:
   - `API_TOKENS`
-  - `APPSFLYER_DEV_KEY`
+  - `APPSFLYER_DEV_KEY` (опционально, как default fallback)
   - `APPSFLYER_DEFAULT_APP_ID`
 
 ## Шаги деплоя
@@ -47,7 +47,7 @@ https://dashboard.render.com/blueprint/new?repo=https://github.com/Be3pReDeL/App
 
 3. Нажмите `Apply` и заполните секретные переменные (`sync: false`):
    - `API_TOKENS`
-   - `APPSFLYER_DEV_KEY`
+   - `APPSFLYER_DEV_KEY` (опционально)
    - `APPSFLYER_DEFAULT_APP_ID`
 
 4. Дождитесь статуса `Live` у `appsflyer-api` и `appsflyer-worker`.

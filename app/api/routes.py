@@ -71,6 +71,7 @@ async def track_registration_get(
     rate_limit: Annotated[None, Depends(check_rate_limit_dependency)],
     producer: Annotated[EventProducer, Depends(_get_producer)],
     app_id: str | None = None,
+    dev_key: str | None = None,
     appsflyer_id: str | None = None,
     customer_user_id: str | None = None,
     device_id: str | None = None,
@@ -82,6 +83,7 @@ async def track_registration_get(
     # Build request model from query parameters
     event_data = RegistrationRequest(
         app_id=app_id,
+        dev_key=dev_key,
         appsflyer_id=appsflyer_id,
         customer_user_id=customer_user_id,
         device_id=device_id,
@@ -112,6 +114,7 @@ async def track_registration_post(
     rate_limit: Annotated[None, Depends(check_rate_limit_dependency)],
     producer: Annotated[EventProducer, Depends(_get_producer)],
     app_id: str | None = None,
+    dev_key: str | None = None,
     appsflyer_id: str | None = None,
     customer_user_id: str | None = None,
     device_id: str | None = None,
@@ -123,6 +126,7 @@ async def track_registration_post(
     # Build request model from query parameters (same as GET)
     event_data = RegistrationRequest(
         app_id=app_id,
+        dev_key=dev_key,
         appsflyer_id=appsflyer_id,
         customer_user_id=customer_user_id,
         device_id=device_id,
@@ -153,6 +157,7 @@ async def track_registration_proxy_post(
     rate_limit: Annotated[None, Depends(check_rate_limit_dependency)],
     producer: Annotated[EventProducer, Depends(_get_producer)],
     app_id: str | None = None,
+    dev_key: str | None = None,
     appsflyer_id: str | None = None,
     customer_user_id: str | None = None,
     device_id: str | None = None,
@@ -163,6 +168,7 @@ async def track_registration_proxy_post(
     """Track registration event via proxy POST (query parameters)."""
     event_data = RegistrationRequest(
         app_id=app_id,
+        dev_key=dev_key,
         appsflyer_id=appsflyer_id,
         customer_user_id=customer_user_id,
         device_id=device_id,
@@ -193,6 +199,7 @@ async def track_purchase_get(
     rate_limit: Annotated[None, Depends(check_rate_limit_dependency)],
     producer: Annotated[EventProducer, Depends(_get_producer)],
     app_id: str | None = None,
+    dev_key: str | None = None,
     revenue: float | None = None,
     currency: str | None = None,
     appsflyer_id: str | None = None,
@@ -219,6 +226,7 @@ async def track_purchase_get(
     try:
         event_data = PurchaseRequest(
             app_id=app_id,
+            dev_key=dev_key,
             revenue=revenue,
             currency=currency,
             appsflyer_id=appsflyer_id,
@@ -256,6 +264,7 @@ async def track_purchase_post(
     rate_limit: Annotated[None, Depends(check_rate_limit_dependency)],
     producer: Annotated[EventProducer, Depends(_get_producer)],
     app_id: str | None = None,
+    dev_key: str | None = None,
     revenue: float | None = None,
     currency: str | None = None,
     appsflyer_id: str | None = None,
@@ -282,6 +291,7 @@ async def track_purchase_post(
     try:
         event_data = PurchaseRequest(
             app_id=app_id,
+            dev_key=dev_key,
             revenue=revenue,
             currency=currency,
             appsflyer_id=appsflyer_id,
@@ -319,6 +329,7 @@ async def track_purchase_proxy_post(
     rate_limit: Annotated[None, Depends(check_rate_limit_dependency)],
     producer: Annotated[EventProducer, Depends(_get_producer)],
     app_id: str | None = None,
+    dev_key: str | None = None,
     revenue: float | None = None,
     currency: str | None = None,
     appsflyer_id: str | None = None,
@@ -343,6 +354,7 @@ async def track_purchase_proxy_post(
     try:
         event_data = PurchaseRequest(
             app_id=app_id,
+            dev_key=dev_key,
             revenue=revenue,
             currency=currency,
             appsflyer_id=appsflyer_id,

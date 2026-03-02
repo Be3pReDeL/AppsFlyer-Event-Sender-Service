@@ -35,6 +35,7 @@ class AppsFlyerClient:
         request: AppsFlyerRequest,
         event_id: str,
         app_id: str | None = None,
+        dev_key: str | None = None,
     ) -> AppsFlyerResponse:
         """Send event to AppsFlyer API.
 
@@ -42,6 +43,7 @@ class AppsFlyerClient:
             request: AppsFlyer request model
             event_id: Internal event ID for logging
             app_id: AppsFlyer app ID (uses default if not provided)
+            dev_key: AppsFlyer dev key for this request (uses env default if not provided)
 
         Returns:
             AppsFlyer response model
@@ -58,12 +60,22 @@ class AppsFlyerClient:
                 retryable=False,
             )
 
+        # Use provided dev_key if non-empty, otherwise fallback to default from settings
+        request_dev_key = dev_key.strip() if dev_key else ""
+        effective_dev_key = request_dev_key or self.dev_key.strip()
+        if not effective_dev_key:
+            raise AppsFlyerError(
+                "AppsFlyer dev_key not configured (set APPSFLYER_DEV_KEY or pass dev_key query parameter)",
+                status_code=None,
+                retryable=False,
+            )
+
         # Build URL
         url = f"{self.base_url}/inappevent/{target_app_id}"
 
         # Build headers
         headers = {
-            "authentication": self.dev_key,
+            "authentication": effective_dev_key,
             "Content-Type": "application/json",
             "Accept": "application/json",
         }

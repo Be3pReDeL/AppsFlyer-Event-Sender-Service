@@ -301,9 +301,19 @@ if [ -f "docker-compose.yml" ]; then
                     check_fail "$var не установлен в .env"
                 fi
             }
+
+            # Проверка опциональных переменных
+            check_env_var_optional() {
+                local var=$1
+                if grep -q "^${var}=" .env && ! grep -q "^${var}=$" .env && ! grep -q "^${var}=\s*$" .env; then
+                    check_pass "$var установлен в .env"
+                else
+                    check_warn "$var не установлен в .env (можно передавать через query parameter dev_key)"
+                fi
+            }
             
             check_env_var "API_TOKENS"
-            check_env_var "APPSFLYER_DEV_KEY"
+            check_env_var_optional "APPSFLYER_DEV_KEY"
             check_env_var "APPSFLYER_DEFAULT_APP_ID"
         else
             check_warn ".env не найден (создайте из .env.example)"

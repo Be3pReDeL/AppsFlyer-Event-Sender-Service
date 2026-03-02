@@ -120,7 +120,7 @@ docker compose up -d
 | Переменная | Описание | Пример |
 |------------|----------|--------|
 | `API_TOKENS` | API токены для авторизации | `abc123...,def456...` |
-| `APPSFLYER_DEV_KEY` | AppsFlyer Dev Key | `aBcDeFgH123456789` |
+| `APPSFLYER_DEV_KEY` | Default AppsFlyer Dev Key (fallback; можно передавать `dev_key` в query) | `aBcDeFgH123456789` |
 | `APPSFLYER_DEFAULT_APP_ID` | Default App ID | `id1234567890` или `com.example.app` |
 | `APP_ENV` | Окружение | `prod` |
 | `DEBUG` | Debug режим | `false` |
