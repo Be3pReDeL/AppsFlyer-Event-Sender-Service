@@ -8,6 +8,7 @@ import sys
 import redis.asyncio as aioredis
 
 from app.appsflyer.client import AppsFlyerClient, get_client
+from app.appsflyer.dev_key_repository import DevKeyRepository
 from app.appsflyer.mapper import AppsFlyerMapper
 from app.core.config import get_settings
 from app.core.exceptions import AppsFlyerError
@@ -34,6 +35,7 @@ class Worker:
         self.consumer: EventConsumer | None = None
         self.producer: EventProducer | None = None
         self.appsflyer_client: AppsFlyerClient | None = None
+        self.dev_key_repository: DevKeyRepository | None = None
         self._last_pending_check = 0.0
 
     async def start(self) -> None:
@@ -66,6 +68,7 @@ class Worker:
 
         # Create AppsFlyer client
         self.appsflyer_client = get_client(self.settings)
+        self.dev_key_repository = DevKeyRepository(self.settings.appsflyer_dev_key_db_path)
 
         logger.info(
             "worker_started",
@@ -181,13 +184,17 @@ class Worker:
             # Map internal event to AppsFlyer request
             af_request, app_id = AppsFlyerMapper.map_event(event)
             request_dev_key = event.payload.get("dev_key")
+            resolved_dev_key = await self._resolve_dev_key(
+                app_id=app_id,
+                request_dev_key=request_dev_key if isinstance(request_dev_key, str) else None,
+            )
 
             # Send to AppsFlyer
             af_response = await self.appsflyer_client.send_event(
                 af_request,
                 event.event_id,
                 app_id=app_id,
-                dev_key=request_dev_key if isinstance(request_dev_key, str) else None,
+                dev_key=resolved_dev_key,
             )
 
             logger.info(
@@ -313,6 +320,32 @@ class Worker:
 
         # Ensure non-negative
         return max(0.1, delay)
+
+    async def _resolve_dev_key(
+        self,
+        app_id: str | None,
+        request_dev_key: str | None,
+    ) -> str | None:
+        """Resolve dev key by priority: request param -> DB mapping -> env default."""
+        if request_dev_key and request_dev_key.strip():
+            return request_dev_key.strip()
+
+        if not app_id:
+            # Let AppsFlyer client apply env fallback and validation.
+            return None
+
+        if self.dev_key_repository is None:
+            self.dev_key_repository = DevKeyRepository(self.settings.appsflyer_dev_key_db_path)
+
+        try:
+            mapped_dev_key = await self.dev_key_repository.get_dev_key(app_id.strip())
+            if mapped_dev_key:
+                return mapped_dev_key
+        except Exception as e:
+            # Continue with env fallback if mapping DB is temporarily unavailable.
+            logger.error("dev_key_lookup_failed", app_id=app_id, error=str(e))
+
+        return None
 
     async def stop(self) -> None:
         """Stop the worker gracefully."""

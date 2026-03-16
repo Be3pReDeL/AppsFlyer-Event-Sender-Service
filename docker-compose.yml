@@ -10,6 +10,7 @@ services:
       - DEBUG=${DEBUG:-false}
       - AUTH_MODE=${AUTH_MODE:-token}
       - API_TOKENS=${API_TOKENS}
+      - ADMIN_TOKENS=${ADMIN_TOKENS}
       - HMAC_KEYS_JSON=${HMAC_KEYS_JSON:-{}}
       - REDIS_URL=redis://redis:6379/0
       - STREAM_MAIN=${STREAM_MAIN:-events:main}
@@ -17,6 +18,7 @@ services:
       - APPSFLYER_BASE_URL=${APPSFLYER_BASE_URL:-https://api3.appsflyer.com}
       - APPSFLYER_DEV_KEY=${APPSFLYER_DEV_KEY}
       - APPSFLYER_DEFAULT_APP_ID=${APPSFLYER_DEFAULT_APP_ID}
+      - APPSFLYER_DEV_KEY_DB_PATH=${APPSFLYER_DEV_KEY_DB_PATH:-/data/appsflyer_dev_keys.db}
       - APPSFLYER_TIMEOUT_SECONDS=${APPSFLYER_TIMEOUT_SECONDS:-5}
       - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED:-true}
       - RATE_LIMIT_RPS=${RATE_LIMIT_RPS:-100}
@@ -27,6 +29,8 @@ services:
       redis:
         condition: service_healthy
     restart: always
+    volumes:
+      - app-data:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
       interval: 30s
@@ -55,6 +59,7 @@ services:
       - APPSFLYER_BASE_URL=${APPSFLYER_BASE_URL:-https://api3.appsflyer.com}
       - APPSFLYER_DEV_KEY=${APPSFLYER_DEV_KEY}
       - APPSFLYER_DEFAULT_APP_ID=${APPSFLYER_DEFAULT_APP_ID}
+      - APPSFLYER_DEV_KEY_DB_PATH=${APPSFLYER_DEV_KEY_DB_PATH:-/data/appsflyer_dev_keys.db}
       - APPSFLYER_TIMEOUT_SECONDS=${APPSFLYER_TIMEOUT_SECONDS:-5}
       - DEDUP_TTL_SECONDS=${DEDUP_TTL_SECONDS:-604800}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
@@ -63,6 +68,8 @@ services:
       redis:
         condition: service_healthy
     restart: always
+    volumes:
+      - app-data:/data
     networks:
       - app-network
 
@@ -89,3 +96,4 @@ networks:
 
 volumes:
   redis-data:
+  app-data:

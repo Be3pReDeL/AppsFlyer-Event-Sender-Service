@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 
+from app.api.admin import router as admin_router
 from app.api.health import router as health_router
 from app.api.routes import router as tracking_router
 from app.core.config import get_settings
@@ -80,6 +81,7 @@ def create_app() -> FastAPI:
     # Include routers
     app.include_router(health_router)
     app.include_router(tracking_router)
+    app.include_router(admin_router)
 
     # Global exception handlers
     @app.exception_handler(AuthenticationError)
