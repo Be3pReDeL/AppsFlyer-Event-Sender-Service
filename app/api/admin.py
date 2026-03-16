@@ -42,7 +42,10 @@ async def upsert_dev_key_mapping(
     if not dev_key:
         raise ValidationError("dev_key must not be empty")
 
-    repo = DevKeyRepository(settings.appsflyer_dev_key_db_path)
+    repo = DevKeyRepository(
+        database_url=settings.appsflyer_dev_key_database_url,
+        sqlite_db_path=settings.appsflyer_dev_key_db_path,
+    )
     updated_at_raw = await repo.upsert_dev_key(app_id=app_id, dev_key=dev_key)
     updated_at = datetime.fromisoformat(updated_at_raw)
 

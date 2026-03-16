@@ -20,6 +20,7 @@ def setup_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Set environment for admin endpoint tests."""
     monkeypatch.setenv("APP_ENV", "dev")
     monkeypatch.setenv("ADMIN_TOKENS", "admin-test-token")
+    monkeypatch.delenv("APPSFLYER_DEV_KEY_DATABASE_URL", raising=False)
     monkeypatch.setenv("APPSFLYER_DEV_KEY_DB_PATH", str(tmp_path / "dev-keys.db"))
 
 

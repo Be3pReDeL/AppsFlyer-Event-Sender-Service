@@ -7,9 +7,11 @@
 - `appsflyer-api` (`type: web`) — публичный FastAPI сервис.
 - `appsflyer-worker` (`type: worker`) — фоновый обработчик очереди.
 - `appsflyer-redis` (`type: redis`) — внутреннее key-value хранилище для Streams/dedup/rate limit.
+- `appsflyer-devkeys-db` (`type: postgres`) — постоянная shared база для mapping `app_id -> dev_key`.
 
 Текущая конфигурация планов:
 - `appsflyer-api`: `free`
+- `appsflyer-devkeys-db`: `free`
 - `appsflyer-redis`: `free`
 - `appsflyer-worker`: `starter` (на free worker недоступен в Render)
 - Python version: `3.11.11` (зафиксирован через `.python-version` и `PYTHON_VERSION` в `render.yaml`)
@@ -20,6 +22,7 @@
 - В корне репозитория есть `render.yaml`.
 - Подготовлены секреты:
   - `API_TOKENS`
+  - `ADMIN_TOKENS`
   - `APPSFLYER_DEV_KEY` (опционально, как default fallback)
   - `APPSFLYER_DEFAULT_APP_ID`
 
@@ -47,10 +50,13 @@ https://dashboard.render.com/blueprint/new?repo=https://github.com/Be3pReDeL/App
 
 3. Нажмите `Apply` и заполните секретные переменные (`sync: false`):
    - `API_TOKENS`
+   - `ADMIN_TOKENS`
    - `APPSFLYER_DEV_KEY` (опционально)
    - `APPSFLYER_DEFAULT_APP_ID`
 
-4. Дождитесь статуса `Live` у `appsflyer-api` и `appsflyer-worker`.
+4. Render автоматически создаст Postgres и подставит `APPSFLYER_DEV_KEY_DATABASE_URL` в `appsflyer-api` и `appsflyer-worker` через `fromDatabase.connectionString`.
+
+5. Дождитесь статуса `Live` у `appsflyer-api` и `appsflyer-worker`.
 
 ## Проверка после деплоя
 
@@ -75,5 +81,6 @@ curl -X POST "https://<your-api>.onrender.com/v1/track/registration?token=<TOKEN
 ## Важные замечания
 
 - `REDIS_URL` для API/worker подставляется автоматически через `fromService`.
+- `APPSFLYER_DEV_KEY_DATABASE_URL` для API/worker подставляется автоматически через `fromDatabase`.
 - В Render free-инстансы не поддерживают `worker`, поэтому для фонового обработчика используется `starter`.
 - Если изменяете контракт переменных окружения, обновляйте одновременно `.env.example` и `render.yaml`.

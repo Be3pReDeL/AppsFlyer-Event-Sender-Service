@@ -57,9 +57,13 @@ class Settings(BaseSettings):
         default="",
         description="Default AppsFlyer app ID (can be overridden per request)",
     )
+    appsflyer_dev_key_database_url: str = Field(
+        default="",
+        description="Shared Postgres URL for app_id to dev_key mapping",
+    )
     appsflyer_dev_key_db_path: str = Field(
         default="/data/appsflyer_dev_keys.db",
-        description="SQLite DB path for app_id to dev_key mapping",
+        description="Fallback SQLite path for app_id to dev_key mapping",
     )
 
     # Rate limiting
