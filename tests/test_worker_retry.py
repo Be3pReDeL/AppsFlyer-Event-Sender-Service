@@ -1,6 +1,5 @@
 """Tests for worker retry logic and DLQ handling."""
 
-import asyncio
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -8,6 +7,7 @@ import pytest
 import redis.asyncio as aioredis
 
 from app.appsflyer.client import AppsFlyerClient
+from app.appsflyer.dev_key_repository import DevKeyRepository
 from app.core.config import get_settings
 from app.core.exceptions import AppsFlyerError
 from app.core.models import InternalEvent
@@ -235,6 +235,34 @@ async def test_request_dev_key_forwarded_to_appsflyer_client(
 
 
 @pytest.mark.asyncio
+async def test_db_dev_key_used_when_request_key_missing(
+    worker, sample_event, mock_appsflyer_client
+):
+    """Test that worker uses DB mapping if request dev_key is absent."""
+    sample_event.payload["app_id"] = "id123456789"
+    sample_event.payload.pop("dev_key", None)
+
+    with patch("app.appsflyer.mapper.AppsFlyerMapper.map_event") as mock_map:
+        af_request = MagicMock()
+        mock_map.return_value = (af_request, "id123456789")
+        mock_appsflyer_client.send_event.return_value = MagicMock(status=200)
+
+        mock_repo = AsyncMock(spec=DevKeyRepository)
+        mock_repo.get_dev_key.return_value = "mapped-dev-key"
+        worker.dev_key_repository = mock_repo
+
+        await worker._process_event("msg-123", sample_event)
+
+        mock_repo.get_dev_key.assert_called_once_with("id123456789")
+        mock_appsflyer_client.send_event.assert_called_once_with(
+            af_request,
+            sample_event.event_id,
+            app_id="id123456789",
+            dev_key="mapped-dev-key",
+        )
+
+
+@pytest.mark.asyncio
 async def test_reclaim_pending_messages_processes_events(worker, mock_consumer):
     """Test that pending messages are reclaimed and processed."""
     pending_fields = {
@@ -265,7 +293,7 @@ async def test_reclaim_pending_messages_processes_events(worker, mock_consumer):
 
 @pytest.mark.asyncio
 async def test_retry_after_429_uses_backoff(
-    worker, sample_event, mock_producer, mock_consumer, mock_appsflyer_client
+    worker, sample_event, mock_producer, mock_appsflyer_client
 ):
     """Test that 429 errors trigger retry with backoff."""
     with patch("app.appsflyer.mapper.AppsFlyerMapper.map_event") as mock_map:

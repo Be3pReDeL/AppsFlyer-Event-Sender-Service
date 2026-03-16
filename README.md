@@ -93,8 +93,29 @@ bash scripts/auto-deploy.sh production
 | `/v1/track/registration/proxy` | POST | Прокси для регистрации (token auth, без HMAC) |
 | `/v1/track/purchase/proxy` | POST | Прокси для покупки (token auth, без HMAC) |
 
+### Admin
+
+| Endpoint | Метод | Описание |
+|----------|-------|----------|
+| `/v1/admin/dev-keys` | POST | Защищённый upsert `app_id -> dev_key` (header `X-Admin-Token`) |
+
 > **Note**: POST endpoints используют query-параметры (совместимость с Keitaro).
-> `dev_key` можно передавать в query для конкретного запроса; если его нет, используется `APPSFLYER_DEV_KEY` из env.
+> Приоритет выбора `dev_key` при отправке в AppsFlyer:
+> 1) `dev_key` из query конкретного события
+> 2) `dev_key` из БД по `app_id` (через `/v1/admin/dev-keys`)
+> 3) `APPSFLYER_DEV_KEY` из env (fallback)
+
+### Admin Endpoint Example
+
+```bash
+curl -X POST "http://localhost:8000/v1/admin/dev-keys" \
+  -H "Content-Type: application/json" \
+  -H "X-Admin-Token: YOUR_ADMIN_TOKEN" \
+  -d '{
+    "app_id": "id6758761140",
+    "dev_key": "YOUR_APPSFLYER_DEV_KEY_FOR_APP"
+  }'
+```
 
 ## Примеры использования
 
@@ -198,6 +219,7 @@ platform=android"
 |------------|--------------|----------|
 | `AUTH_MODE` | token | Режим аутентификации (token/hmac) |
 | `API_TOKENS` | - | Валидные токены (через запятую) |
+| `ADMIN_TOKENS` | - | Admin токены для `/v1/admin/*` |
 | `HMAC_KEYS_JSON` | {} | JSON mapping public_id → secret |
 | `AUTH_TS_SKEW_SECONDS` | 300 | Допустимый timestamp skew для HMAC |
 
@@ -227,6 +249,7 @@ platform=android"
 | `APPSFLYER_DEV_KEY` | - | Dev key по умолчанию (fallback, можно переопределить `dev_key` в query) |
 | `APPSFLYER_DEFAULT_APP_ID` | - | App ID по умолчанию |
 | `APPSFLYER_TIMEOUT_SECONDS` | 5 | Timeout запросов |
+| `APPSFLYER_DEV_KEY_DB_PATH` | /data/appsflyer_dev_keys.db | SQLite DB для mapping `app_id -> dev_key` |
 
 ### Rate Limiting
 

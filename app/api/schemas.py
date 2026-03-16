@@ -116,6 +116,21 @@ class TrackingResponse(BaseModel):
         }
 
 
+class DevKeyMappingUpsertRequest(BaseModel):
+    """Request model for app_id -> dev_key mapping update."""
+
+    app_id: str = Field(..., min_length=1, description="AppsFlyer app ID")
+    dev_key: str = Field(..., min_length=1, description="AppsFlyer dev key for the app")
+
+
+class DevKeyMappingResponse(BaseModel):
+    """Response model for app_id -> dev_key mapping update."""
+
+    status: str = Field(..., description="Update status")
+    app_id: str = Field(..., description="AppsFlyer app ID")
+    updated_at: datetime = Field(..., description="UTC timestamp when mapping was updated")
+
+
 class ErrorResponse(BaseModel):
     """Error response model."""
 

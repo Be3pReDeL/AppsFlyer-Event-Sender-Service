@@ -5,7 +5,7 @@ import hmac
 import time
 from typing import Annotated
 
-from fastapi import Depends, Query, Request
+from fastapi import Depends, Header, Query, Request
 from fastapi.security import HTTPBearer
 
 from app.core.config import Settings, get_settings
@@ -179,3 +179,25 @@ async def get_proxy_auth(
     """Token auth for proxy endpoints (works regardless of auth_mode)."""
     await verify_token_auth(token, settings)
     return {"method": "proxy", "identifier": "***"}
+
+
+async def verify_admin_token(
+    x_admin_token: Annotated[str | None, Header(alias="X-Admin-Token")] = None,
+    settings: Settings = Depends(get_settings),
+) -> str:
+    """Verify admin token from X-Admin-Token header."""
+    if not x_admin_token:
+        logger.warning("admin_auth_failed", reason="missing_admin_token")
+        raise AuthenticationError("Missing X-Admin-Token header")
+
+    valid_admin_tokens = settings.get_admin_tokens_list()
+    if not valid_admin_tokens:
+        logger.error("admin_auth_config_error", reason="no_admin_tokens_configured")
+        raise AuthenticationError("Admin authentication not configured")
+
+    if x_admin_token not in valid_admin_tokens:
+        logger.warning("admin_auth_failed", reason="invalid_admin_token")
+        raise AuthenticationError("Invalid admin token")
+
+    logger.debug("admin_auth_success")
+    return "***"

@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     # Authentication
     auth_mode: Literal["token", "hmac"] = Field(default="token", description="Authentication mode")
     api_tokens: str = Field(default="", description="Comma-separated list of valid API tokens")
+    admin_tokens: str = Field(default="", description="Comma-separated list of valid admin tokens")
     hmac_keys_json: str = Field(default="{}", description="JSON mapping of public_id to secret")
     auth_ts_skew_seconds: int = Field(default=300, description="Allowed timestamp skew for HMAC auth")
 
@@ -56,6 +57,10 @@ class Settings(BaseSettings):
         default="",
         description="Default AppsFlyer app ID (can be overridden per request)",
     )
+    appsflyer_dev_key_db_path: str = Field(
+        default="/data/appsflyer_dev_keys.db",
+        description="SQLite DB path for app_id to dev_key mapping",
+    )
 
     # Rate limiting
     rate_limit_enabled: bool = Field(default=True, description="Enable rate limiting")
@@ -82,6 +87,12 @@ class Settings(BaseSettings):
         if not self.api_tokens:
             return []
         return [token.strip() for token in self.api_tokens.split(",") if token.strip()]
+
+    def get_admin_tokens_list(self) -> list[str]:
+        """Parse comma-separated admin tokens into a list."""
+        if not self.admin_tokens:
+            return []
+        return [token.strip() for token in self.admin_tokens.split(",") if token.strip()]
 
     def get_hmac_keys(self) -> dict[str, str]:
         """Parse HMAC keys JSON into a dictionary."""
