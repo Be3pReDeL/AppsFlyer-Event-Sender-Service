@@ -70,7 +70,8 @@ bash scripts/auto-deploy.sh production
 2. Запушьте изменения в GitHub.
 3. Откройте Blueprint:
    `https://dashboard.render.com/blueprint/new?repo=<HTTPS_URL_ВАШЕГО_РЕПОЗИТОРИЯ>`
-4. Заполните секреты (`API_TOKENS`, `APPSFLYER_DEFAULT_APP_ID`, опционально `APPSFLYER_DEV_KEY`) и нажмите `Apply`.
+4. Заполните секреты (`API_TOKENS`, `ADMIN_TOKENS`, `APPSFLYER_DEFAULT_APP_ID`, опционально `APPSFLYER_DEV_KEY`) и нажмите `Apply`.
+5. Blueprint сам создаст Postgres для `app_id -> dev_key` mapping и подключит его к `api` и `worker`.
 
 **Подробнее:** [Deployment Guide для Render](docs/deployment_render.md)
 
@@ -249,7 +250,8 @@ platform=android"
 | `APPSFLYER_DEV_KEY` | - | Dev key по умолчанию (fallback, можно переопределить `dev_key` в query) |
 | `APPSFLYER_DEFAULT_APP_ID` | - | App ID по умолчанию |
 | `APPSFLYER_TIMEOUT_SECONDS` | 5 | Timeout запросов |
-| `APPSFLYER_DEV_KEY_DB_PATH` | /data/appsflyer_dev_keys.db | SQLite DB для mapping `app_id -> dev_key` |
+| `APPSFLYER_DEV_KEY_DATABASE_URL` | - | Shared Postgres URL для mapping `app_id -> dev_key` |
+| `APPSFLYER_DEV_KEY_DB_PATH` | /data/appsflyer_dev_keys.db | Fallback SQLite path для single-host deploy |
 
 ### Rate Limiting
 

@@ -1,5 +1,10 @@
+databases:
+  - name: appsflyer-devkeys-db
+    plan: free
+    ipAllowList: []
+
 services:
-  - type: redis
+  - type: keyvalue
     name: appsflyer-redis
     plan: free
     maxmemoryPolicy: noeviction
@@ -23,13 +28,15 @@ services:
         value: token
       - key: API_TOKENS
         sync: false
+      - key: ADMIN_TOKENS
+        sync: false
       - key: HMAC_KEYS_JSON
         value: "{}"
       - key: AUTH_TS_SKEW_SECONDS
         value: "300"
       - key: REDIS_URL
         fromService:
-          type: redis
+          type: keyvalue
           name: appsflyer-redis
           property: connectionString
       - key: STREAM_MAIN
@@ -44,6 +51,10 @@ services:
         sync: false
       - key: APPSFLYER_DEFAULT_APP_ID
         sync: false
+      - key: APPSFLYER_DEV_KEY_DATABASE_URL
+        fromDatabase:
+          name: appsflyer-devkeys-db
+          property: connectionString
       - key: RATE_LIMIT_ENABLED
         value: "true"
       - key: RATE_LIMIT_RPS
@@ -72,7 +83,7 @@ services:
         value: "false"
       - key: REDIS_URL
         fromService:
-          type: redis
+          type: keyvalue
           name: appsflyer-redis
           property: connectionString
       - key: STREAM_MAIN
@@ -99,6 +110,10 @@ services:
         sync: false
       - key: APPSFLYER_DEFAULT_APP_ID
         sync: false
+      - key: APPSFLYER_DEV_KEY_DATABASE_URL
+        fromDatabase:
+          name: appsflyer-devkeys-db
+          property: connectionString
       - key: DEDUP_TTL_SECONDS
         value: "604800"
       - key: LOG_LEVEL

@@ -68,7 +68,10 @@ class Worker:
 
         # Create AppsFlyer client
         self.appsflyer_client = get_client(self.settings)
-        self.dev_key_repository = DevKeyRepository(self.settings.appsflyer_dev_key_db_path)
+        self.dev_key_repository = DevKeyRepository(
+            database_url=self.settings.appsflyer_dev_key_database_url,
+            sqlite_db_path=self.settings.appsflyer_dev_key_db_path,
+        )
 
         logger.info(
             "worker_started",
@@ -335,7 +338,10 @@ class Worker:
             return None
 
         if self.dev_key_repository is None:
-            self.dev_key_repository = DevKeyRepository(self.settings.appsflyer_dev_key_db_path)
+            self.dev_key_repository = DevKeyRepository(
+                database_url=self.settings.appsflyer_dev_key_database_url,
+                sqlite_db_path=self.settings.appsflyer_dev_key_db_path,
+            )
 
         try:
             mapped_dev_key = await self.dev_key_repository.get_dev_key(app_id.strip())
